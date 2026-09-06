@@ -75,5 +75,5 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
 - **Decisions made:** Future preprocessing must consume only the canonical manifests. Original split manifests remain the provenance layer and must not be used as one-row-per-video preprocessing input. GPU use is not applicable to this completed CPU-based container audit; no preprocessing was started.
 - **Files created/modified:** Created canonical split CSVs, `scripts/create_canonical_manifests.py`, `scripts/validate_dataset.py`, `scripts/create_final_dataset_summary.py`, `data/README.md`, `reports/final_dataset_summary.md`, and `reports/media_integrity_failures.csv`. Updated `PROJECT_LOG.md`.
 - **Reproducibility results:** Canonical generation completed in approximately 13.4 seconds in the measured run, and repeated generation produced identical SHA-256 hashes for all three canonical manifests.
-- **Git commit hash:** Final amended commit is recorded as `1c08f06` before push.
+- **Git commit hash:** Dataset-freeze implementation was committed and pushed as `c863a8c`.
 - **Next step:** `NEXT STAGE = VIDEO/AUDIO PREPROCESSING`. Stop here; do not begin RetinaFace, frame extraction, audio extraction, spectrogram generation, model implementation, training, or Streamlit.
