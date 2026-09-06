@@ -37,3 +37,19 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
 - **Decisions made:** Use `source` as the sole split key. Keep duplicate metadata rows visible in the CSVs, while requiring each canonical sample path to occur in only one split. Use the video component of `type` for the primary visual label and retain the audio component separately; do not silently correct source metadata labels.
 - **Files created/modified:** Created `scripts/create_identity_split.py`, `data/splits/train.csv`, `data/splits/val.csv`, and `data/splits/test.csv`. Updated `PROJECT_LOG.md`.
 - **Next step:** Begin video preprocessing only after this split commit is available; do not proceed to model implementation yet.
+
+## 2026-09-06
+
+- **Stage:** Phase 1 - Dataset preparation / duplicate integrity audit
+- **Task performed:** Audited duplicate canonical sample paths in the existing identity-based split manifests before video preprocessing.
+- **Why it was performed:** The split contains more metadata rows than unique physical video paths. Duplicate records could change sample weighting during preprocessing and could conceal conflicting annotations, so they had to be classified before any media processing.
+- **Implementation/details:**
+  - Added `scripts/audit_duplicate_records.py` to load `train.csv`, `val.csv`, and `test.csv`, compare duplicate groups field by field, verify physical files, recheck split isolation, and generate a Markdown report.
+  - Audited all relevant original metadata fields plus `video_label`, `audio_label`, `label`, and split assignment.
+  - Compared duplicate rows as metadata records rather than deleting or normalizing them.
+- **Verification performed:** Loaded all three manifests and confirmed the expected schema and row counts. Ran `python -m py_compile scripts/audit_duplicate_records.py` and `python scripts/audit_duplicate_records.py`. Verified every duplicated path against the local dataset root, rechecked cross-split path and identity intersections, and checked visual/audio/final label consistency.
+- **Results:** Audit status `PASS - audit complete; manifests unchanged`. There are 21,566 manifest rows, 21,544 unique canonical paths, 22 duplicated paths, and 44 duplicate rows. All 22 duplicate physical files exist. Every duplicate group occurs within one split. Cross-split duplicate paths: 0. Cross-split source identities: 0. Every duplicate group has two metadata rows differing only in `method` (`faceswap-wav2lip` versus `wav2lip`); `type`, identity, path, and other audited metadata agree. Visual-label conflicts: 0. Audio-label conflicts: 0. Final-label conflicts: 0.
+- **Problems/issues discovered:** These are not exact duplicate metadata records. They represent the same physical video referenced by conflicting method annotations. Retaining both rows preserves both annotations but can cause the physical video to receive double row-level sampling weight in later preprocessing. Removing one row would reduce that weighting and discard one method annotation. No automatic choice is justified by the current evidence.
+- **Decisions made:** Do not modify the split CSVs and do not modify the raw dataset. Keep the duplicate records unchanged pending explicit dataset-method review. Do not proceed to RetinaFace, frame extraction, audio extraction, training, or model implementation from this task.
+- **Files created/modified:** Created `scripts/audit_duplicate_records.py` and `reports/dataset_duplicate_audit.md`. Updated `PROJECT_LOG.md`. The existing split CSVs and raw dataset were not modified.
+- **Next step:** Review the 22 `method` conflicts and approve a controlled manifest policy before video preprocessing. This audit does not authorize deduplication or media processing.
