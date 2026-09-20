@@ -96,3 +96,11 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
 - **Decisions made:** Fallback strategy ensures the network always receives [NUM_FRAMES, 3, 224, 224] tensors, preventing pipeline crashes during training.
 - **Files created/modified:** Created data/dataset_split/*, preprocessing/video_preprocessing.py, preprocessing/__init__.py, and scripts/verify_video_preprocessing.py.
 - **Next step:** NEXT STAGE = AUDIO PREPROCESSING. Stop here.
+
+## Phase 1.5: Video Preprocessing Quality Validation
+- Validated video preprocessing on a deterministic subset of 50 videos (25 Train, 15 Val, 10 Test).
+- **Results**: CUDA was unavailable; InsightFace used CPUExecutionProvider.
+- **Detection Success Rate**: 41.5%
+- **Fallback Rate (Center Crop)**: 58.5%
+- **Problematic Videos**: 8 videos had 0 successful detections; 31 had >50% fallback rate.
+- **Conclusion**: RetinaFace CPU performance is inadequate for robust deepfake detection data extraction. A 58.5% blind center-crop fallback rate will destroy dataset integrity. Proceeding to full-dataset processing is halted pending GPU acceleration or a better fallback mechanism (e.g. forward-filling bounding boxes).

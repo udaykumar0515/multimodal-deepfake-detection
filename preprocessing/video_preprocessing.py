@@ -6,15 +6,15 @@ from typing import List, Tuple, Optional
 import os
 
 try:
-    from insightface.app import FaceAnalysis
+    from insightface.app import FaceAnalysis  # type: ignore
     HAVE_INSIGHTFACE = True
 except ImportError:
     HAVE_INSIGHTFACE = False
     print("Warning: insightface not installed. RetinaFace will not work.")
 
 try:
-    import albumentations as A
-    from albumentations.pytorch import ToTensorV2
+    import albumentations as A  # type: ignore
+    from albumentations.pytorch import ToTensorV2  # type: ignore
     HAVE_ALBUMENTATIONS = True
 except ImportError:
     HAVE_ALBUMENTATIONS = False
