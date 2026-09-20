@@ -104,3 +104,8 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
 - **Fallback Rate (Center Crop)**: 58.5%
 - **Problematic Videos**: 8 videos had 0 successful detections; 31 had >50% fallback rate.
 - **Conclusion**: RetinaFace CPU performance is inadequate for robust deepfake detection data extraction. A 58.5% blind center-crop fallback rate will destroy dataset integrity. Proceeding to full-dataset processing is halted pending GPU acceleration or a better fallback mechanism (e.g. forward-filling bounding boxes).
+
+## Phase 1.6: GPU Environment Diagnosis
+- Diagnosed the cause of missing GPU acceleration for RetinaFace/PyTorch.
+- **Findings**: The NVIDIA GeForce RTX 4050 is fully visible to Windows (Driver 546.18, CUDA 12.3 supported). However, the Python environment is using CPU-only packages (	orch==2.14.0+cpu and onnxruntime==1.30.0).
+- **Status**: GPU acceleration is currently **NOT** fixed. A package swap to CUDA-enabled versions is required to resolve this bottleneck.
