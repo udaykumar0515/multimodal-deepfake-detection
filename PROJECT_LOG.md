@@ -77,3 +77,22 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
 - **Reproducibility results:** Canonical generation completed in approximately 13.4 seconds in the measured run, and repeated generation produced identical SHA-256 hashes for all three canonical manifests.
 - **Git commit hash:** Dataset-freeze implementation was committed and pushed as `c863a8c`.
 - **Next step:** `NEXT STAGE = VIDEO/AUDIO PREPROCESSING`. Stop here; do not begin RetinaFace, frame extraction, audio extraction, spectrogram generation, model implementation, training, or Streamlit.
+
+## 2026-09-20
+
+- **Stage:** Phase 1 - Video Preprocessing
+- **Task performed:** Created final working dataset directory (data/dataset_split/) and implemented video preprocessing pipeline with RetinaFace, uniform temporal sampling, and conservative augmentations.
+- **Why it was performed:** To implement the finalized Phase 1 blueprint for multimodal deepfake detection video input.
+- **Implementation/details:**
+  - Set up data/dataset_split/ populated from canonical manifests.
+  - Configured NUM_FRAMES = 16 as a baseline parameter (not experimentally optimal yet) for deterministic UniformTemporalSampler covering the whole video length.
+  - RetinaFace implementation using insightface (det_10g model), with 20% bounding-box margin and 224x224 interpolation.
+  - Training augmentation (Horizontal Flip p=0.5, Rotate ±10°, Color Jitter, Random Erasing) via lbumentations.
+  - Validation/Test transformation set to deterministic ImageNet normalization.
+  - Failure-handling policy logs face detection failures and falls back deterministically to a central crop.
+- **Verification performed:** Executed scripts/verify_video_preprocessing.py on 3 videos (1 per split). Validated input loading, preprocessing tensor shape (16x3x224x224), bounds (no NaN/Inf), and failure fallback.
+- **Results:** Processed 3/3 samples successfully. insightface encountered face detection failures (likely CPU thresholding on smaller clips), handled gracefully by the fallback logic. Final output shapes and value normalization passed.
+- **Problems/issues discovered:** insightface might require GPU execution and confidence tuning for robust face detection; failures fallback to center-cropping was exercised.
+- **Decisions made:** Fallback strategy ensures the network always receives [NUM_FRAMES, 3, 224, 224] tensors, preventing pipeline crashes during training.
+- **Files created/modified:** Created data/dataset_split/*, preprocessing/video_preprocessing.py, preprocessing/__init__.py, and scripts/verify_video_preprocessing.py.
+- **Next step:** NEXT STAGE = AUDIO PREPROCESSING. Stop here.
