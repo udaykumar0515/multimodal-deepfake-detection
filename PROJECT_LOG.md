@@ -231,3 +231,37 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - CUDA forward pass: SUCCESS ✓
   - Trainable parameters: 9,326,841 ✓
 - **Training:** NOT performed in this phase.
+
+## Phase 6: Training Infrastructure (Completed)
+- **Status:** PHASE 6 COMPLETE — Infrastructure verified. Full training NOT yet run.
+- **Files Created:**
+  - `training/__init__.py` — Package init
+  - `training/losses.py` — `BinaryFocalLoss` module
+  - `training/trainer.py` — `Trainer` class
+  - `scripts/train.py` — Training entry point (`python scripts/train.py`)
+  - `scripts/test_training_pipeline.py` — End-to-end sanity test
+- **Architecture:**
+  - **Loss:** Binary Focal Loss (`gamma=2.0`, configurable) on raw logits. Numerically stable via `F.binary_cross_entropy_with_logits`.
+  - **Optimizer:** AdamW (`lr=1e-4`, `weight_decay=1e-4`)
+  - **Scheduler:** CosineAnnealingLR (`T_max=num_epochs`, `eta_min=lr*0.01`)
+  - **AMP:** `torch.amp.autocast("cuda")` + `GradScaler` enabled on CUDA, gracefully disabled on CPU.
+  - **Gradient Clipping:** `max_norm=1.0` applied before each optimizer step.
+- **Checkpointing:**
+  - `checkpoints/latest.pt` — Saved every epoch.
+  - `checkpoints/best_model.pt` — Saved when val loss improves.
+  - Checkpoint contains: model state, optimizer state, scheduler state, scaler state, epoch, best_val_loss, history, config.
+- **Resume:** `python scripts/train.py --resume checkpoints/latest.pt` restores full state.
+- **Training History:** `training_history.json` — epoch, train_loss, val_loss, lr, time_sec per epoch.
+- **Default Configuration (RTX 4050 6GB safe):**
+  - `batch_size=4`, `num_epochs=10`, `lr=1e-4`, `focal_gamma=2.0`, `seed=42`
+- **Progress Display:** tqdm progress bars per epoch for train and val loops + epoch summary.
+- **Sanity Test Results (`scripts/test_training_pipeline.py`):**
+  - [1/8] DataLoaders loaded (7541 train batches, 1596 val batches) [OK]
+  - [2/8] Model instantiated (9,326,841 trainable parameters) [OK]
+  - [3/8] Focal Loss on dummy data: 0.0399 [OK]
+  - [4/8] Forward + Backward + Optimizer: 3 batches, 426 layers updated [OK]
+  - [5/8] Gradient check: 426 layers with gradients [OK]
+  - [6/8] Validation forward pass: loss=0.1762 [OK]
+  - [7/8] Checkpoint round-trip: PASSED [OK]
+  - [8/8] Grad-CAM layers intact post-training-step [OK]
+  - **TRAINING PIPELINE TEST PASSED**
