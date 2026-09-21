@@ -208,3 +208,26 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - Output batches confirmed explicitly dimensioned as `(B, 16, 3, 224, 224)` and `(B, 3, 224, 224)`.
   - CUDA transfer successfully tested.
   - Git secured cleanly without staging any processed dataset contents.
+
+## Phase 5: Multimodal Model Architecture (Completed)
+- **Status:** PHASE 5 COMPLETE
+- **Architecture:**
+  - **Video Encoder** (`models/video_encoder.py`): Wraps EfficientNet-B0 (pretrained ImageNet). Accepts `(B, 16, 3, 224, 224)`, reshapes to `(B×16, 3, 224, 224)`, passes through EfficientNet feature extractor + AdaptiveAvgPool2d, reshapes to `(B, 16, 1280)`, mean-pools to `(B, 1280)`.
+  - **Audio Encoder** (`models/audio_encoder.py`): Wraps EfficientNet-B0 (pretrained ImageNet). Accepts `(B, 3, 224, 224)` log-mel spectrograms, returns `(B, 1280)`.
+  - **Fusion Model** (`models/fusion_model.py`): Concatenates video + audio features → `(B, 2560)` → `Linear(2560→512)` → `ReLU` → `Dropout(0.3)` → `Linear(512→1)` → raw logit `(B, 1)`.
+  - **Total Parameters:** 9,326,841 (all trainable in this phase).
+  - No sigmoid inside the model; external `BCEWithLogitsLoss` / Focal Loss will apply it during training.
+- **Transfer Learning:** Both EfficientNet-B0 backbones loaded from `EfficientNet_B0_Weights.IMAGENET1K_V1` via torchvision 0.22.1.
+- **Grad-CAM Accessibility:** `model.video_encoder.grad_cam_layer` and `model.audio_encoder.grad_cam_layer` both reference the final `Conv2dNormActivation` block (block index `[-1]` of `backbone.features`), ready for future hook attachment without architectural changes.
+- **Sanity Test Results (`scripts/test_model_architecture.py`):**
+  - Video input shape: `(2, 16, 3, 224, 224)` ✓
+  - Audio input shape: `(2, 3, 224, 224)` ✓
+  - Video feature: `(2, 1280)` ✓
+  - Audio feature: `(2, 1280)` ✓
+  - Fused feature: `(2, 2560)` ✓
+  - Output logit: `(2, 1)` ✓
+  - NaN/Inf check: PASSED ✓
+  - Grad-CAM layers accessible: PASSED ✓
+  - CUDA forward pass: SUCCESS ✓
+  - Trainable parameters: 9,326,841 ✓
+- **Training:** NOT performed in this phase.
