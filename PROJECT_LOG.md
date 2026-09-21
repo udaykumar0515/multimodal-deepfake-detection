@@ -109,3 +109,102 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
 - Diagnosed the cause of missing GPU acceleration for RetinaFace/PyTorch.
 - **Findings**: The NVIDIA GeForce RTX 4050 is fully visible to Windows (Driver 546.18, CUDA 12.3 supported). However, the Python environment is using CPU-only packages (	orch==2.14.0+cpu and onnxruntime==1.30.0).
 - **Status**: GPU acceleration is currently **NOT** fixed. A package swap to CUDA-enabled versions is required to resolve this bottleneck.
+
+## Phase 1.6.1: GPU Acceleration Validation
+- **Task performed:** Installed CUDA-capable versions of PyTorch and ONNX Runtime and verified `CUDAExecutionProvider` works on Windows.
+- **Results:** GPU acceleration was successful (3.2x faster: ~1.42 sec/video vs ~4.57 sec/video). However, the direct detection success rate remained at 41.5%, proving the detection failures are due to model/data characteristics, not CPU compute precision.
+
+## Phase 1.7: Bounding-Box Forward-Fill Experiment
+- **Task performed:** Implemented stateful "Bounding-Box Forward-Filling" in `preprocessing/video_preprocessing.py`. When a face is missed in a frame, the pipeline reuses the bounding box from the most recent successful detection in the sequence.
+- **Results:** 
+  - Direct Detections: 41.5%
+  - Forward-Filled: 25.4%
+  - Center Fallback: Reduced from 58.5% down to 33.1%.
+- **Conclusion:** Forward-filling salvaged nearly half of the failed detections (203 out of 468) and increased the number of fully-covered videos (0 center fallbacks) to 20/50. Dataset integrity is significantly improved.
+
+## Phase 1.8: Forward-Fill Quality Check
+- **Task performed:** Ran a visual and quantitative diagnostic check (`scripts/quality_check_forward_fill.py`) on the 50-video validation sample to ensure forward-filled bounding boxes remain accurate and to analyze the remaining 33.1% fallback rate.
+- **Quantitative findings:** Mean forward-fill streak was ~3 frames (max 12). Mean geometric drift from stale bounding boxes to the next detection was only 1.63%.
+- **Visual findings:** Forward-filled bounding boxes consistently remain on the face due to the 20% margin. The remaining 33.1% center fallbacks occur primarily because initial frames in the video fail detection, leaving no prior bounding box to reuse.
+- **Decision:** Do not proceed to full-dataset processing yet. The pipeline must be upgraded to support **Backward-Filling** (allowing initial missing frames to borrow the bounding box from the first successful detection later in the sequence) to further reduce center fallbacks.
+
+## Phase 1.10: Repository Cleanup and Experimental Artifact Organization
+- **Previous repository organization:** Validation reports, diagnostic scripts, duplicate audits, dataset splits, and experimental artifacts were scattered across root, `data/`, `scripts/`, and `reports/` directories.
+- **New organization:** Created a `testing/` hierarchy to cleanly archive historical and diagnostic artifacts. `reports/` was absorbed completely into `testing/`.
+- **What was moved:** 
+  - `data/splits/` (historical dataset artifacts) to `testing/dataset/splits/`
+  - Dataset audit scripts and reports to `testing/dataset/audits/`
+  - GPU diagnoses and scripts to `testing/gpu/`
+  - Video validation/forward-fill scripts and reports to `testing/video_preprocessing/`
+  - Root `implementaion_plan.md` to `testing/historical_artifacts/`
+- **Why it was moved:** To ensure the root and `scripts/` directories contain only active, production-ready code, while preserving all validation provenance and reproducibility artifacts without loss of history.
+- **What remains active:** `data/dataset_split/` (final working manifests), `preprocessing/` (active pipeline), `scripts/preprocess_dataset_offline.py` (production script), `PROJECT_LOG.md`, and raw data.
+- **Confirmation:** No experimental evidence or datasets were deleted. All scripts were updated to reflect new import paths.
+- **Verification results:** Paths verified and `PROJECT_LOG.md` updated successfully.
+- **Next phase:** Full video preprocessing or Audio preprocessing (after potentially fixing Backward-Filling).
+
+## Phase 2: Full Video Preprocessing (Completed)
+- **Status:** Completed
+- **Configuration & Methodology:**
+  - **Inputs:** `data/dataset_split/train.csv`, `val.csv`, `test.csv` (21,544 videos total).
+  - **Pipeline:** `VideoPreprocessor` executing Uniform Sampling (16 frames/video), RetinaFace (`det_10g`), 20% bounding-box margin.
+  - **Fallback Logic:** Direct Detection -> Forward-Fill (reusing last valid bbox) -> Center-Crop Fallback. (Backward-filling explicitly skipped per frozen methodology).
+- **Completion Record:**
+  - **Total Videos Processed:** 21,544 / 21,544
+  - **Failures:** 0
+  - **Split Counts:** 15,083 Train / 3,191 Val / 3,270 Test
+  - **Total Frames Extracted:** 344,704
+  - **Frame Breakdown:** 
+    - Direct: 141,166
+    - Forward-fill: 83,946
+    - Center fallback: 119,592
+  - **Output Format:** `.npy` (224x224x3 `uint8`)
+  - **Output Size:** ~48.33 GB
+  - **Runtime:** ~9h 12m
+- **Verification Milestones:**
+  - [x] **GPU/CUDA status:** GPU acceleration successfully utilized. The ONNX Runtime warning (`LoadLibrary failed with error 126`) was confirmed to be a harmless initialization artifact.
+  - [x] **Resumability:** Verified.
+  - [x] **Raw dataset:** Verified completely untouched.
+  - [x] **Downstream compatibility:** Verified. The `[16, 224, 224, 3]` `uint8` `.npy` arrays are perfectly compatible for loading directly into future PyTorch datasets for dynamic transformation.
+
+## Phase 3: Audio Preprocessing (Completed)
+- **Status:** PHASE 3 COMPLETE
+- **Configuration & Methodology:**
+  - **Extraction Format:** 16 kHz mono 16-bit PCM WAV with dynamic/original duration preserved.
+  - **Spectrogram Configuration:** 128-mel Log-Mel spectrogram, resized to 224x224, expanded to 3-channel `float32` tensors (`.npy`).
+  - **Output Locations:**
+    - `data/processed_audio/raw_wav/`
+    - `data/processed_audio/spectrograms/`
+- **Completion Record:**
+  - **Total Videos Processed:** 21,544 / 21,544 success
+  - **Failed:** 0
+  - **Skipped:** 0
+  - **Split Counts:** 15,083 Train / 3,191 Val / 3,270 Test
+  - **Runtime:** ~46m 14s (~7.77 videos/sec)
+  - **Output Size:** ~15.51 GB total (3.43 GB raw WAVs + 12.08 GB Spectrograms)
+- **Final Verification Results:**
+  - All outputs accurately verified for correct parameters, shapes, dtypes, readability, and correct `sample_path` mapping. No NaNs or Infs present.
+  - Resume logic verified.
+  - Raw dataset verified completely untouched.
+  - Git properly configured to ignore generated audio data.
+- **Warnings/Dependency Issues:**
+  - During the initial test, the `soundfile` dependency for `torchaudio` was missing on Windows, throwing backend load errors. Fixed by executing `pip install soundfile`.
+  - `imageio-ffmpeg` was installed to provide an isolated project-level FFmpeg binary.
+
+## Phase 4: PyTorch Dataset & DataLoader (Completed)
+- **Status:** PHASE 4 COMPLETE
+- **Configuration & Methodology:**
+  - **Dataset Implementation:** `MultimodalDeepfakeDataset` lazily loads preprocessed `.npy` video and audio tensors directly from disk into memory, preventing aggressive RAM consumption.
+  - **Video Handling:** Dynamically maps `(16, 224, 224, 3)` `uint8` arrays to `(16, 3, 224, 224)` `float32` PyTorch tensors and normalizes using ImageNet mean/std.
+  - **Video Augmentation:** Incorporates strict *temporally consistent* spatial transforms (`HorizontalFlip`, `Rotate`, `ColorJitter`) across all 16 frames simultaneously utilizing `albumentations` with dynamic `additional_targets`.
+  - **Audio Handling:** Dynamically maps `(3, 224, 224)` `float32` `.npy` spectrograms to PyTorch tensors.
+  - **Label Handling:** Reads exact canonical labels (`label` column) mapping `"Real" -> 0.0` and `"Fake" -> 1.0` as PyTorch floats.
+- **Class Imbalance Strategy:** 
+  - **Train:** Resolved extreme `700 Real` / `14,383 Fake` class imbalance by implementing a `WeightedRandomSampler` which computes inverse frequency probabilities. (Tested dynamically generating ~50/50 batches out of a 4.6% Real canonical distribution).
+  - **Val/Test:** Natural dataset distribution strictly preserved (`shuffle=False`, Sequential, no sampler).
+  - *Note:* Class imbalance is handled at the training sampling level in Phase 4. Focal Loss will provide the complementary loss-level handling during the later training phase.
+- **Verification Results:** 
+  - Dataset lengths confirmed accurate (15,083 Train, 3,191 Val, 3,270 Test).
+  - Output batches confirmed explicitly dimensioned as `(B, 16, 3, 224, 224)` and `(B, 3, 224, 224)`.
+  - CUDA transfer successfully tested.
+  - Git secured cleanly without staging any processed dataset contents.
