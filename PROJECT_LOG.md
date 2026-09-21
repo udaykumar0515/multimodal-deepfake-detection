@@ -351,3 +351,23 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
 - **Issues Discovered:**
   - Initially hit a Windows `cp1252` encoding issue when printing a unicode checkmark in the sanity check script. Replaced with `[OK]`.
 - **Note:** The actual Grad-CAM heatmap generation has NOT been implemented yet. This was strictly a technical readiness verification.
+
+## Phase 9B: Actual Grad-CAM Implementation
+- **Status:** COMPLETE
+- **Implementation Details:**
+  - Script created at `scripts/generate_gradcam.py`.
+  - Reusable `GradCAM` class implements forward/backward hooks, global average pooling over gradients to extract feature weights, and ReLU applied to the weighted combination of activations.
+  - Heatmaps are spatially normalized to `[0, 1]`, resized to `224x224`, and converted to `COLORMAP_JET` overlays using `cv2`.
+  - `checkpoints/best_model.pt` loaded successfully with PyTorch 2.6 `weights_only=False` fix.
+- **Samples Selected:**
+  1. `correct_fake`: `FakeVideo-FakeAudio/African/men/id00391/00052_id00166_PQV2ZbJBLNk_id00478_wavtolip.mp4` (Prob Fake: 1.0000)
+  2. `false_negatives` (1): `FakeVideo-RealAudio/African/women/id00460/00005.mp4` (Prob Fake: 0.0105)
+  3. `false_negatives` (2): `FakeVideo-RealAudio/African/women/id00592/00017.mp4` (Prob Fake: 0.0261)
+  4. `false_negatives` (3): `FakeVideo-RealAudio/Asian (East)/men/id06591/00021.mp4` (Prob Fake: 0.0686)
+  5. `correct_real`: `RealVideo-FakeAudio/African/men/id00391/00052_fake.mp4` (Prob Fake: 0.0195)
+- **Selected Frame Indices:** Deterministically selected frames `[0, 7, 15]` for all video outputs.
+- **Generated Output Directory:** `results/gradcam/`
+  - Video artifacts: Original frame, Heatmap, and Overlay (per frame index).
+  - Audio artifacts: Original spectrogram, Heatmap, and Overlay.
+  - `metadata.json` created containing paths, probabilities, target classes, and coordinates for all generated artifacts.
+- **No Issues Discovered:** Implementation correctly propagated gradients via BCE logit and successfully produced overlays.
