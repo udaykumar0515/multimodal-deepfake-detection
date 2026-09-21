@@ -388,3 +388,22 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - `scripts/`: Now exclusively contains active, reproducible entry points (`train.py`, `evaluate_test.py`, `preprocess_audio_offline.py`, `preprocess_dataset_offline.py`).
   - `results/`: Contains exclusively final evaluation artifacts (metrics, predictions, cm, roc).
 - **Data Integrity:** Raw datasets, processed arrays, and model checkpoints remain 100% untouched. No architecture was changed.
+
+## Phase 10: Minimal Streamlit Application
+- **Status:** COMPLETE
+- **Implementation Details:**
+  - `app.py` created at the repository root as the sole web application entry point.
+  - Implemented exactly two classic pages: `Detection` and `Results & Evaluation`.
+  - Application strictly adheres to minimal UI constraints without unnecessary custom CSS, animations, or marketing fluff.
+- **Inference Flow:**
+  - Processes uploaded `.mp4` video dynamically into a temporary file.
+  - Utilizes active `VideoPreprocessor` and `SpectrogramGenerator` to compute 16 standardized normalized video frames and a single 16 kHz Log-Mel spectrogram.
+  - Passes these tensors dynamically through the unchanged `best_model.pt` architecture.
+- **Grad-CAM Integration:**
+  - Embedded the reusable `GradCAM` extraction class directly into the Streamlit logic.
+  - Dynamically computes and displays the `[0, 1]` spatial overlays on 3 deterministic video frames (`[0, 7, 15]`) and the audio spectrogram.
+- **Evaluation Page:**
+  - Loads metrics exclusively from `results/test_metrics.json`.
+  - Renders the existing visual artifacts `results/confusion_matrix.png` and `results/roc_curve.png`.
+- **Streamlit Status:**
+  - Server is actively running as a daemon on `http://localhost:8501`.
