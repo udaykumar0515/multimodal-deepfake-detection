@@ -13,6 +13,7 @@ Responsibilities:
     - Resume from checkpoint
     - Training history JSON logging
     - Learning-rate scheduler step
+    - Comprehensive metric calculation (Loss, Acc, Prec, Rec, F1, AUC)
 """
 
 import os
@@ -23,6 +24,8 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 from training.losses import BinaryFocalLoss
 
@@ -85,8 +88,8 @@ class Trainer:
         for epoch in range(self.start_epoch, num_epochs):
             epoch_start = time.time()
 
-            train_loss = self._train_epoch(epoch, num_epochs)
-            val_loss   = self._validate_epoch(epoch, num_epochs)
+            train_metrics = self._train_epoch(epoch, num_epochs)
+            val_metrics   = self._validate_epoch(epoch, num_epochs)
 
             self.scheduler.step()
 
@@ -96,29 +99,38 @@ class Trainer:
             # ── Epoch summary ──────────────────────────────────────────────
             print(
                 f"\nEpoch {epoch + 1}/{num_epochs} | "
-                f"Train Loss: {train_loss:.4f} | "
-                f"Val Loss: {val_loss:.4f} | "
-                f"LR: {lr_now:.2e} | "
-                f"Time: {epoch_time:.1f}s"
+                f"Train Loss: {train_metrics['loss']:.4f} Acc: {train_metrics['acc']:.4f} F1: {train_metrics['f1']:.4f} | "
+                f"Val Loss: {val_metrics['loss']:.4f} Acc: {val_metrics['acc']:.4f} F1: {val_metrics['f1']:.4f} | "
+                f"LR: {lr_now:.2e} | Time: {epoch_time:.1f}s"
             )
 
             # ── History ────────────────────────────────────────────────────
             self.history.append({
-                "epoch":      epoch + 1,
-                "train_loss": train_loss,
-                "val_loss":   val_loss,
-                "lr":         lr_now,
-                "time_sec":   round(epoch_time, 2),
+                "epoch":           epoch + 1,
+                "train_loss":      train_metrics['loss'],
+                "train_acc":       train_metrics['acc'],
+                "train_precision": train_metrics['precision'],
+                "train_recall":    train_metrics['recall'],
+                "train_f1":        train_metrics['f1'],
+                "train_auc":       train_metrics['auc'],
+                "val_loss":        val_metrics['loss'],
+                "val_acc":         val_metrics['acc'],
+                "val_precision":   val_metrics['precision'],
+                "val_recall":      val_metrics['recall'],
+                "val_f1":          val_metrics['f1'],
+                "val_auc":         val_metrics['auc'],
+                "lr":              lr_now,
+                "time_sec":        round(epoch_time, 2),
             })
             self._save_history()
 
             # ── Checkpointing ──────────────────────────────────────────────
-            self._save_checkpoint("latest.pt", epoch + 1, val_loss)
+            self._save_checkpoint("latest.pt", epoch + 1, val_metrics['loss'])
 
-            if val_loss < self.best_val_loss:
-                self.best_val_loss = val_loss
-                self._save_checkpoint("best_model.pt", epoch + 1, val_loss)
-                print(f"  [BEST] New best val loss: {val_loss:.4f}  ->  best_model.pt saved")
+            if val_metrics['loss'] < self.best_val_loss:
+                self.best_val_loss = val_metrics['loss']
+                self._save_checkpoint("best_model.pt", epoch + 1, val_metrics['loss'])
+                print(f"  [BEST] New best val loss: {val_metrics['loss']:.4f}  ->  best_model.pt saved")
 
         print("\n==========================================")
         print("Training complete.")
@@ -145,10 +157,32 @@ class Trainer:
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
-    def _train_epoch(self, epoch: int, total_epochs: int) -> float:
+    def _calculate_metrics(self, all_targets: list, all_probs: list) -> dict:
+        targets_np = np.array(all_targets)
+        probs_np = np.array(all_probs)
+        preds_np = (probs_np >= 0.5).astype(int)
+        
+        # Guard against single-class batches causing AUC errors
+        try:
+            auc = roc_auc_score(targets_np, probs_np)
+        except ValueError:
+            auc = 0.5
+
+        return {
+            'acc': accuracy_score(targets_np, preds_np),
+            'precision': precision_score(targets_np, preds_np, zero_division=0),
+            'recall': recall_score(targets_np, preds_np, zero_division=0),
+            'f1': f1_score(targets_np, preds_np, zero_division=0),
+            'auc': auc
+        }
+
+    def _train_epoch(self, epoch: int, total_epochs: int) -> dict:
         self.model.train()
         total_loss = 0.0
         n_batches  = 0
+        
+        all_targets = []
+        all_probs = []
 
         pbar = tqdm(
             self.train_loader,
@@ -183,14 +217,25 @@ class Trainer:
             loss_val = loss.detach().item()
             total_loss += loss_val
             n_batches  += 1
+            
+            with torch.no_grad():
+                probs = torch.sigmoid(logits)
+                all_probs.extend(probs.cpu().numpy().flatten())
+                all_targets.extend(labels.cpu().numpy().flatten())
+            
             pbar.set_postfix(loss=f"{loss_val:.4f}")
 
-        return total_loss / max(n_batches, 1)
+        metrics = self._calculate_metrics(all_targets, all_probs)
+        metrics['loss'] = total_loss / max(n_batches, 1)
+        return metrics
 
-    def _validate_epoch(self, epoch: int, total_epochs: int) -> float:
+    def _validate_epoch(self, epoch: int, total_epochs: int) -> dict:
         self.model.eval()
         total_loss = 0.0
         n_batches  = 0
+        
+        all_targets = []
+        all_probs = []
 
         pbar = tqdm(
             self.val_loader,
@@ -215,9 +260,16 @@ class Trainer:
 
                 total_loss += loss.item()
                 n_batches  += 1
+                
+                probs = torch.sigmoid(logits)
+                all_probs.extend(probs.cpu().numpy().flatten())
+                all_targets.extend(labels.cpu().numpy().flatten())
+                
                 pbar.set_postfix(loss=f"{loss.item():.4f}")
 
-        return total_loss / max(n_batches, 1)
+        metrics = self._calculate_metrics(all_targets, all_probs)
+        metrics['loss'] = total_loss / max(n_batches, 1)
+        return metrics
 
     def _save_checkpoint(self, filename: str, epoch: int, val_loss: float) -> None:
         state = {

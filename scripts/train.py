@@ -34,7 +34,7 @@ DEFAULT_CONFIG = {
     "learning_rate":    1e-4,
     "weight_decay":     1e-4,
     "focal_gamma":      2.0,
-    "num_workers":      4,
+    "num_workers":      0,
     "seed":             42,
     "checkpoint_dir":   str(project_root / "checkpoints"),
     "history_path":     str(project_root / "training_history.json"),

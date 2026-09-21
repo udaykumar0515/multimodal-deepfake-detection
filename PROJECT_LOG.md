@@ -287,3 +287,29 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - `num_workers=4` caused DataLoader worker crash on Windows during validation (after training loop); resolved by using `num_workers=0` in timing script. Full `train.py` uses `num_workers=4` with persistent processes which is safe for the actual training loop.
   - VRAM headroom: ~2.73 GB free — batch_size=4 is confirmed safe.
 - **Recommended Configuration:** `batch_size=4`, `num_epochs=10`, AMP enabled, AdamW lr=1e-4. Safe and efficient for RTX 4050 6GB.
+
+## Phase 7: Actual Full Training
+- **Status:** READY FOR MANUAL LAUNCH
+- **Configuration (Verified):**
+  - Planned epochs: 10
+  - Batch size: 4
+  - `num_workers`: 0 (Updated for stability on Windows)
+  - AMP: Enabled
+  - Optimizer: AdamW (lr=1e-4, weight_decay=1e-4)
+  - Loss: Binary Focal Loss (gamma=2.0)
+  - GPU: NVIDIA GeForce RTX 4050 Laptop GPU (6GB VRAM)
+- **Data:**
+  - Training: 15,083 samples
+  - Validation: 3,191 samples
+  - Test: 3,270 samples (Held out - NOT used during training)
+- **Expected Runtime:** Approximately 2–2.5 hours for 10 epochs (based on Phase 6.5 readiness results).
+- **Execution Details:**
+  - Comprehensive metrics (Accuracy, Precision, Recall, F1, AUC, Loss) added to `training/trainer.py`.
+  - Checkpoints will be saved to `checkpoints/latest.pt` and `checkpoints/best_model.pt`.
+  - History will be saved to `training_history.json`.
+  - Plotting script `scripts/plot_training_curves.py` created for generating research figures.
+- **IMPORTANT:** The actual full training command has **NOT** been launched by the agent. The user must launch it manually to witness the process.
+- **Manual Launch Command:**
+  ```powershell
+  .\.venv_gpu\Scripts\python.exe scripts\train.py
+  ```
