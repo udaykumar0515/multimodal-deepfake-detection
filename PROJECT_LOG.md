@@ -313,3 +313,23 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   ```powershell
   .\.venv_gpu\Scripts\python.exe scripts\train.py
   ```
+
+## Phase 8: Final Test Evaluation Preparation
+- **Status:** READY FOR MANUAL LAUNCH
+- **Configuration:**
+  - Evaluates on untouched `data/dataset_split/test.csv` (3,270 samples).
+  - Loads weights from `checkpoints/best_model.pt`.
+- **Execution Details:**
+  - Script created at `scripts/evaluate_test.py`.
+  - Calculates Accuracy, Precision, Recall, F1, ROC-AUC, and Confusion Matrix (TP, TN, FP, FN).
+  - Generates artifacts in `results/` directory:
+    - `test_metrics.json`
+    - `test_predictions.csv` (sample_path, true_label, predicted_label, prob_fake)
+    - `confusion_matrix.png`
+    - `roc_curve.png`
+- **Sanity Check:** PASSED. `checkpoints/best_model.pt` loaded successfully with PyTorch 2.6 `weights_only=False` fix.
+- **IMPORTANT:** The actual full test evaluation command has **NOT** been launched by the agent. The user must launch it manually.
+- **Manual Launch Command:**
+  ```powershell
+  .\.venv_gpu\Scripts\python.exe scripts\evaluate_test.py
+  ```
