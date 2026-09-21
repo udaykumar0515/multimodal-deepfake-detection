@@ -333,3 +333,21 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   ```powershell
   .\.venv_gpu\Scripts\python.exe scripts\evaluate_test.py
   ```
+
+## Phase 9A: Grad-CAM Preparation and Sanity Check
+- **Status:** COMPLETE
+- **Configuration (Verified):**
+  - **Model Architecture Checked:** `models/video_encoder.py`, `models/audio_encoder.py`, `models/fusion_model.py`.
+  - **Target Layers Found:** `self.grad_cam_layer` maps to `backbone.features[-1]` in both EfficientNet encoders (the final convolutional block).
+  - **Checkpoint Verification:** `checkpoints/best_model.pt` loaded successfully.
+- **Sanity Check Execution:**
+  - Used 1 single test sample (`FakeVideo-FakeAudio/African/men/id00391/00052_id00166_PQV2ZbJBLNk_id00478_wavtolip.mp4`).
+  - True label: 1.0 (Fake), Predicted Prob: 1.0000.
+  - Forward and backward hooks registered successfully.
+  - Backward pass completed without gradient detachment errors.
+- **Readiness Verification Results:**
+  - **Video Encoder:** TECHNICALLY SUPPORTED. Captured activations and gradients successfully (Shape: `[16, 1280, 7, 7]`).
+  - **Audio Encoder:** TECHNICALLY SUPPORTED. Captured activations and gradients successfully (Shape: `[1, 1280, 7, 7]`).
+- **Issues Discovered:**
+  - Initially hit a Windows `cp1252` encoding issue when printing a unicode checkmark in the sanity check script. Replaced with `[OK]`.
+- **Note:** The actual Grad-CAM heatmap generation has NOT been implemented yet. This was strictly a technical readiness verification.
