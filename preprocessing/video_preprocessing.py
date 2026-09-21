@@ -1,4 +1,5 @@
 import cv2
+# pyrefly: ignore [missing-import]
 import torch
 import numpy as np
 import pandas as pd
@@ -6,6 +7,11 @@ from typing import List, Tuple, Optional
 import os
 
 try:
+    if os.name == 'nt':
+        try:
+            os.add_dll_directory(os.path.join(os.path.dirname(torch.__file__), 'lib'))
+        except Exception:
+            pass  # type: ignore
     from insightface.app import FaceAnalysis  # type: ignore
     HAVE_INSIGHTFACE = True
 except ImportError:
@@ -76,7 +82,7 @@ class RetinaFaceCropper:
         self.target_size = target_size
         
         if HAVE_INSIGHTFACE:
-            self.app = FaceAnalysis(allowed_modules=['detection'], providers=['CPUExecutionProvider'])
+            self.app = FaceAnalysis(allowed_modules=['detection'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
             self.app.prepare(ctx_id=0, det_size=(640, 640))
         
     def crop_face(self, frame: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[dict]]:
@@ -95,6 +101,31 @@ class RetinaFaceCropper:
         else:
             x1, y1, x2, y2 = w//4, h//4, w*3//4, h*3//4
             
+        box_w = x2 - x1
+        box_h = y2 - y1
+        
+        margin_w = int(box_w * self.margin)
+        margin_h = int(box_h * self.margin)
+        
+        new_x1 = max(0, x1 - margin_w)
+        new_y1 = max(0, y1 - margin_h)
+        new_x2 = min(w, x2 + margin_w)
+        new_y2 = min(h, y2 + margin_h)
+        
+        crop = frame[new_y1:new_y2, new_x1:new_x2]
+        
+        if crop.size == 0:
+             return None, {"reason": "invalid_crop_size"}
+             
+        crop_resized = cv2.resize(crop, self.target_size, interpolation=cv2.INTER_CUBIC)
+        
+        return crop_resized, {"bbox": (new_x1, new_y1, new_x2, new_y2), "original_bbox": (x1, y1, x2, y2)}
+
+    def apply_bbox_and_crop(self, frame: np.ndarray, bbox: Tuple[int, int, int, int]) -> Tuple[Optional[np.ndarray], dict]:
+        """Applies an existing bounding box to a new frame with margin."""
+        h, w, _ = frame.shape
+        x1, y1, x2, y2 = bbox
+        
         box_w = x2 - x1
         box_h = y2 - y1
         
@@ -155,20 +186,33 @@ class VideoPreprocessor:
         self.cropper = RetinaFaceCropper(margin=margin)
         self.transform = VisualTransform(is_train=is_train)
         
-    def process(self, video_path: str) -> Tuple[Optional[torch.Tensor], List[dict]]:
-        """Processes video into (16, 3, 224, 224) tensor."""
+    def process(self, video_path: str, return_raw_crops: bool = False) -> Tuple[Optional[torch.Tensor | List[np.ndarray]], List[dict]]:
+        """Processes video into (16, 3, 224, 224) tensor or list of raw crops."""
         try:
             frames = self.sampler.sample(video_path)
         except Exception as e:
             return None, [{"reason": f"sampling_failed: {str(e)}"}]
             
         processed_frames = []
+        raw_crops = []
         failures = []
+        last_valid_bbox = None
         
         for idx, frame in enumerate(frames):
             crop, info = self.cropper.crop_face(frame)
+            
+            if crop is not None:
+                last_valid_bbox = info["original_bbox"]
+            elif last_valid_bbox is not None:
+                crop, _ = self.cropper.apply_bbox_and_crop(frame, last_valid_bbox)
+                if crop is None:
+                    failures.append({"frame_idx": idx, "reason": "forward_fill_failed"})
+                else:
+                    failures.append({"frame_idx": idx, "reason": "forward_filled"})
+                    
             if crop is None:
-                failures.append({"frame_idx": idx, "reason": info["reason"]})
+                if last_valid_bbox is None:
+                    failures.append({"frame_idx": idx, "reason": info["reason"]})
                 h, w, _ = frame.shape
                 cw, ch = 224, 224
                 x1, y1 = max(0, w//2 - cw//2), max(0, h//2 - ch//2)
@@ -179,8 +223,14 @@ class VideoPreprocessor:
                 else:
                     crop = np.zeros((224, 224, 3), dtype=np.uint8)
                     
-            tensor = self.transform.apply(crop)
-            processed_frames.append(tensor)
+            if return_raw_crops:
+                raw_crops.append(crop)
+            else:
+                tensor = self.transform.apply(crop)
+                processed_frames.append(tensor)
+            
+        if return_raw_crops:
+            return raw_crops, failures
             
         final_tensor = torch.stack(processed_frames)
         return final_tensor, failures

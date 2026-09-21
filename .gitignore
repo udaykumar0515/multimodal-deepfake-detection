@@ -2,3 +2,8 @@ Docs/
 Dataset_FakeAVCeleb/
 .ipynb_checkpoints/
 __pycache__/
+.venv_gpu/
+data/processed_frames/
+data/processed_audio/
+checkpoints/
+.vscode/

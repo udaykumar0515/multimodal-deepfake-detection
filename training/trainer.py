@@ -141,7 +141,7 @@ class Trainer:
     def resume(self, checkpoint_path: str) -> None:
         """Load state from checkpoint_path and resume from the correct epoch."""
         print(f"Resuming from checkpoint: {checkpoint_path}")
-        ckpt = torch.load(checkpoint_path, map_location=self.device)
+        ckpt = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
 
         self.model.load_state_dict(ckpt["model_state"])
         self.optimizer.load_state_dict(ckpt["optimizer_state"])
