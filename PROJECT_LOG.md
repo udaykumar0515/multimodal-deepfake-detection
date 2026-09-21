@@ -371,3 +371,20 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - Audio artifacts: Original spectrogram, Heatmap, and Overlay.
   - `metadata.json` created containing paths, probabilities, target classes, and coordinates for all generated artifacts.
 - **No Issues Discovered:** Implementation correctly propagated gradients via BCE logit and successfully produced overlays.
+
+## Phase 9.5: Repository Cleanup and Production Artifact Freeze
+- **Status:** COMPLETE
+- **Cleanup Actions:**
+  - Audited full repository to separate active production pipelines from temporary, historical, and testing scripts.
+  - Renamed the misleading `testing/` directory to `archive/` to properly communicate its purpose as a storage location for non-production reproducible artifacts.
+  - Moved all one-time training analysis scripts (`test_training_pipeline.py`, `measure_training_speed.py`, `plot_training_curves.py`) into `archive/training/`.
+  - Moved Grad-CAM generation and sanity check scripts into `archive/gradcam/`.
+  - Moved the generated Grad-CAM research artifact outputs from `results/gradcam/` to `archive/gradcam/outputs/` to keep `results/` clean for final test metric evaluation.
+- **Active Production Structure Verified:**
+  - `models/`: Active model architecture.
+  - `preprocessing/`: Active preprocessing pipeline.
+  - `dataset/`: Active dataloaders.
+  - `training/`: Active training loop/loss functions.
+  - `scripts/`: Now exclusively contains active, reproducible entry points (`train.py`, `evaluate_test.py`, `preprocess_audio_offline.py`, `preprocess_dataset_offline.py`).
+  - `results/`: Contains exclusively final evaluation artifacts (metrics, predictions, cm, roc).
+- **Data Integrity:** Raw datasets, processed arrays, and model checkpoints remain 100% untouched. No architecture was changed.
