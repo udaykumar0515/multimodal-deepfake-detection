@@ -466,25 +466,39 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - Rectified a PyTorch deprecation issue (`verbose` argument in `ReduceLROnPlateau`).
   - The script is fully parameterized to run `batch_size=4`, `lr=1e-4`, `wd=1e-4`, `gamma=2.0`, `grad_clip=1.0` utilizing AMP.
 - **Next Step:** Manual execution of `scripts/train_v2.py` via PowerShell.
-# #   P h a s e   1 5 :   F i n a l   V 2   T e s t   E v a l u a t i o n  
- -   * * S t a t u s : * *   C o m p l e t e d  
- -   * * I m p l e m e n t a t i o n : * *   E v a l u a t e d   t h e   b e s t   V 2   c h e c k p o i n t   o n   t h e   c o m p l e t e l y   h e l d - o u t   t e s t   s e t   ( 3 , 2 7 0   s a m p l e s ) .  
- -   * * B e s t   C h e c k p o i n t   S e l e c t i o n : * *   T h e   V 2   t r a i n i n g   r e a c h e d   i t s   m i n i m u m   v a l i d a t i o n   l o s s   a t   * * E p o c h   6 * *   ( T o t a l   L o s s :   0 . 0 1 8 9   |   F u s i o n   A c c :   9 9 . 8 1 % ) .   T h e   e v a l u a t i o n   c o r r e c t l y   l o a d e d   ` v 2 _ b e s t _ m o d e l . p t `   c o n t a i n i n g   t h i s   e p o c h .  
- -   * * G l o b a l   T e s t   M e t r i c s : * *  
-     -   * * I m a g e   H e a d : * *   A c c u r a c y   9 9 . 9 1 % ,   F 1   9 9 . 9 5 % ,   R O C - A U C   0 . 9 9 9 6  
-     -   * * A u d i o   H e a d : * *   A c c u r a c y   9 9 . 9 4 % ,   F 1   9 9 . 9 4 % ,   R O C - A U C   0 . 9 9 9 9  
-     -   * * F u s i o n   H e a d : * *   A c c u r a c y   9 9 . 9 1 % ,   F 1   9 9 . 9 5 % ,   R O C - A U C   0 . 9 9 9 8  
- -   * * F o u r - C a t e g o r y   M o d a l i t y   D i a g n o s t i c : * *  
-     -   * * R e a l V i d e o   +   R e a l A u d i o * *   ( N = 7 5 ) :   I m a g e   A c c   1 0 0 % ,   A u d i o   A c c   1 0 0 % ,   F u s i o n   A c c   1 0 0 % .   ( A u d i o   M e a n   F a k e   P r o b :   1 . 0 6 % )  
-     -   * * F a k e V i d e o   +   R e a l A u d i o * *   ( N = 1 4 7 1 ) :   I m a g e   A c c   9 9 . 8 0 % ,   A u d i o   A c c   9 9 . 9 3 % ,   F u s i o n   A c c   9 9 . 8 0 % .   ( A u d i o   M e a n   F a k e   P r o b :   0 . 6 4 % )  
-     -   * * R e a l V i d e o   +   F a k e A u d i o * *   ( N = 7 5 ) :   I m a g e   A c c   1 0 0 % ,   A u d i o   A c c   1 0 0 % ,   F u s i o n   A c c   1 0 0 % .   ( I m a g e   M e a n   F a k e   P r o b :   5 . 4 4 % ,   A u d i o   M e a n   F a k e   P r o b :   9 8 . 9 2 % )  
-     -   * * F a k e V i d e o   +   F a k e A u d i o * *   ( N = 1 6 4 9 ) :   I m a g e   A c c   1 0 0 % ,   A u d i o   A c c   9 9 . 9 4 % ,   F u s i o n   A c c   1 0 0 % .  
- -   * * V 1   v s   V 2   M o d a l i t y - B e h a v i o r   C o n c l u s i o n : * *  
-     -   * * V 1 * *   s u f f e r e d   f r o m   v i s u a l   d o m i n a n c e ,   m e a n i n g   i t   i g n o r e d   a u d i o   m a n i p u l a t i o n s   e n t i r e l y .   I t   w a s   s t r u c t u r a l l y   u n a b l e   t o   d i f f e r e n t i a t e   ` R e a l V i d e o   +   F a k e A u d i o `   f r o m   ` R e a l V i d e o   +   R e a l A u d i o ` .  
-     -   * * V 2   e n t i r e l y   s o l v e d   t h i s   p r o b l e m . * *   T h e   i n d e p e n d e n t   t a s k   h e a d s   s u c c e s s f u l l y   d e c o u p l e d   t h e   m o d a l i t i e s .   C r u c i a l l y ,   o n   t h e   ` R e a l V i d e o   +   F a k e A u d i o `   c a t e g o r y ,   t h e   V 2   I m a g e   H e a d   s u c c e s s f u l l y   p r e d i c t e d   * * R E A L * *   ( m e a n   p r o b :   5 . 4 4 % )   w h i l e   t h e   V 2   A u d i o   H e a d   i n d e p e n d e n t l y   a n d   c o r r e c t l y   p r e d i c t e d   * * F A K E * *   ( m e a n   p r o b :   9 8 . 9 2 % ) ,   d e s p i t e   t h e   o v e r a l l   F u s i o n   t a r g e t   b e i n g   R e a l .    
- -   * * G e n e r a t e d   O u t p u t s : * *  
-     -   ` r e s u l t s / v 2 _ t e s t _ m e t r i c s . j s o n `  
-     -   ` r e s u l t s / v 2 _ m o d a l i t y _ c a t e g o r y _ r e s u l t s . c s v `  
-     -   ` r e s u l t s / v 2 _ t e s t _ p r e d i c t i o n s . c s v `  
-     -   C o n f u s i o n   M a t r i c e s   &   R O C   C u r v e s   f o r   I m a g e ,   A u d i o ,   a n d   F u s i o n   H e a d s   ( ` r e s u l t s / * . p n g ` )  
- 
+## Phase 15: Final V2 Test Evaluation
+- **Status:** Completed
+- **Implementation:** Evaluated the best V2 checkpoint on the completely held-out test set (3,270 samples).
+- **Best Checkpoint Selection:** The V2 training reached its minimum validation loss at **Epoch 6** (Total Loss: 0.0189 | Fusion Acc: 99.81%). The evaluation correctly loaded `v2_best_model.pt` containing this epoch.
+- **Global Test Metrics:**
+  - **Image Head:** Accuracy 99.91%, F1 99.95%, ROC-AUC 0.9996
+  - **Audio Head:** Accuracy 99.94%, F1 99.94%, ROC-AUC 0.9999
+  - **Fusion Head:** Accuracy 99.91%, F1 99.95%, ROC-AUC 0.9998
+- **Four-Category Modality Diagnostic:**
+  - **RealVideo + RealAudio** (N=75): Image Acc 100%, Audio Acc 100%, Fusion Acc 100%. (Audio Mean Fake Prob: 1.06%)
+  - **FakeVideo + RealAudio** (N=1471): Image Acc 99.80%, Audio Acc 99.93%, Fusion Acc 99.80%. (Audio Mean Fake Prob: 0.64%)
+  - **RealVideo + FakeAudio** (N=75): Image Acc 100%, Audio Acc 100%, Fusion Acc 100%. (Image Mean Fake Prob: 5.44%, Audio Mean Fake Prob: 98.92%)
+  - **FakeVideo + FakeAudio** (N=1649): Image Acc 100%, Audio Acc 99.94%, Fusion Acc 100%.
+- **V1 vs V2 Modality-Behavior Conclusion:**
+  - **V1** suffered from visual dominance, meaning it ignored audio manipulations entirely. It was structurally unable to differentiate `RealVideo + FakeAudio` from `RealVideo + RealAudio`.
+  - **V2 entirely solved this problem.** The independent task heads successfully decoupled the modalities. Crucially, on the `RealVideo + FakeAudio` category, the V2 Image Head successfully predicted **REAL** (mean prob: 5.44%) while the V2 Audio Head independently and correctly predicted **FAKE** (mean prob: 98.92%), despite the overall Fusion target being Real. 
+- **Generated Outputs:**
+  - `results/v2_test_metrics.json`
+  - `results/v2_modality_category_results.csv`
+  - `results/v2_test_predictions.csv`
+  - Confusion Matrices & ROC Curves for Image, Audio, and Fusion Heads (`results/*.png`)
+
+## Phase 16: Final V2 Grad-CAM Generation
+- **Status:** Completed
+- **Implementation:** Created `scripts/generate_v2_gradcam.py` to natively visualize independent modality activations.
+- **Methodology:** 
+  - Verified and utilized the `checkpoints/v2_best_model.pt` (Epoch 6) evaluated during Phase 15.
+  - Used target layers `model.visual_encoder.grad_cam_layer` and `model.audio_encoder.grad_cam_layer` corresponding to the final convolutional block of the respective EfficientNet-B0 backbone.
+  - Visual Grad-CAM gradients were extracted backward from the **Image Head** prediction target.
+  - Audio Grad-CAM gradients were extracted backward from the **Audio Head** prediction target.
+- **Visualized Samples:** Extracted 1 representative sample per four-category combination from the strictly held-out `test.csv`.
+- **Outputs & Validation:**
+  - All outputs saved to `results/v2_gradcam/`.
+  - Confirmed non-zero gradients, successfully applied global average pooling, ReLU, min-max normalization, and spatial upsampling.
+  - Correctly overlaid on denormalized video frames (0, 7, 15) and original log-mel audio spectrograms.
+- **Interpretability Constraint:** Grad-CAM provides visual attribution of which regions maximized the prediction head's activation; it does not claim to uniquely identify a physical deepfake "artifact."

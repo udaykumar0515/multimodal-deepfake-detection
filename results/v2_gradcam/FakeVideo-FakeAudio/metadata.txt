@@ -1,0 +1,4 @@
+Sample: FakeVideo-FakeAudio/African/men/id00391/00052_id00166_PQV2ZbJBLNk_id00478_wavtolip.mp4
+Category: FakeVideo-FakeAudio
+True Labels -> Video: Fake, Audio: Fake, Overall: Fake
+V2 Predictions (Fake Prob) -> Image Head: 0.9975 | Audio Head: 0.9992 | Fusion Head: 1.0000

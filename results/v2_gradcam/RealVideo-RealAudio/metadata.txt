@@ -1,0 +1,4 @@
+Sample: RealVideo-RealAudio/African/men/id00391/00052.mp4
+Category: RealVideo-RealAudio
+True Labels -> Video: Real, Audio: Real, Overall: Real
+V2 Predictions (Fake Prob) -> Image Head: 0.0187 | Audio Head: 0.0308 | Fusion Head: 0.0144
