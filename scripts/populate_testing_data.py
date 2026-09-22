@@ -73,7 +73,7 @@ def main():
                 
                 # 2. Extract Image
                 img_label_dir = "real" if row.get('video_label', row.get('v_label', 'Unknown')) == 'Real' else "fake"
-                img_filename = f"{cat}_{idx}.jpg"
+                img_filename = f"{img_label_dir}_image_{idx}.jpg"
                 dest_img_path = testing_data_dir / "images" / img_label_dir / img_filename
                 extract_frame(source_path, dest_img_path)
                 manifest_rows.append({
@@ -91,7 +91,7 @@ def main():
                 
                 # 3. Extract Audio
                 aud_label_dir = "real" if row.get('audio_label', row.get('a_label', 'Unknown')) == 'Real' else "fake"
-                aud_filename = f"{cat}_{idx}.wav"
+                aud_filename = f"{aud_label_dir}_audio_{idx}.wav"
                 dest_aud_path = testing_data_dir / "audio" / aud_label_dir / aud_filename
                 extract_audio(source_path, dest_aud_path)
                 manifest_rows.append({
