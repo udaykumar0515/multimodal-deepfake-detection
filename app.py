@@ -197,11 +197,10 @@ def process_image(image_file):
     with st.spinner("Preprocessing image..."):
         img = Image.open(image_file).convert("RGB")
         img_np = np.array(img)
-        
         crop, info = face_cropper.crop_face(img_np)
         if crop is None:
-            return None, "No face detected in image."
-            
+            import cv2
+            crop = cv2.resize(img_np, (224, 224), interpolation=cv2.INTER_CUBIC)
         tensor = vis_transform.apply(crop).unsqueeze(0).to(device)
         tensor.requires_grad_(True)
         
@@ -307,8 +306,8 @@ if page == "Detection":
                         orig_img = denormalize_image(results["video_tensor"][f_idx])
                         overlay = create_overlay(orig_img, results["hm_video"][f_idx])
                         with cols[idx]:
-                            st.image(orig_img, caption=f"Frame {f_idx} (Original)", use_container_width=True)
-                            st.image(overlay, caption=f"Frame {f_idx} (Grad-CAM)", use_container_width=True)
+                            st.image(orig_img, caption=f"Frame {f_idx} (Original)", width="stretch")
+                            st.image(overlay, caption=f"Frame {f_idx} (Grad-CAM)", width="stretch")
                             
                     st.markdown("---")
                     st.subheader("Audio Grad-CAM (Audio Head)")
@@ -316,9 +315,9 @@ if page == "Detection":
                     overlay_aud = create_overlay(orig_aud, results["hm_audio"])
                     ac1, ac2 = st.columns(2)
                     with ac1:
-                        st.image(orig_aud, caption="Spectrogram (Original)", use_container_width=True)
+                        st.image(orig_aud, caption="Spectrogram (Original)", width="stretch")
                     with ac2:
-                        st.image(overlay_aud, caption="Spectrogram (Grad-CAM)", use_container_width=True)
+                        st.image(overlay_aud, caption="Spectrogram (Grad-CAM)", width="stretch")
 
     elif modality == "Image":
         uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
@@ -338,9 +337,9 @@ if page == "Detection":
                     
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.image(orig_img, caption="Cropped Face (Original)", use_container_width=True)
+                        st.image(orig_img, caption="Cropped Face (Original)", width="stretch")
                     with c2:
-                        st.image(overlay, caption="Grad-CAM Overlay", use_container_width=True)
+                        st.image(overlay, caption="Grad-CAM Overlay", width="stretch")
 
     elif modality == "Audio":
         uploaded_file = st.file_uploader("Upload Audio", type=["wav", "mp3", "m4a"])
@@ -360,9 +359,9 @@ if page == "Detection":
                     
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.image(orig_aud, caption="Spectrogram (Original)", use_container_width=True)
+                        st.image(orig_aud, caption="Spectrogram (Original)", width="stretch")
                     with c2:
-                        st.image(overlay, caption="Grad-CAM Overlay", use_container_width=True)
+                        st.image(overlay, caption="Grad-CAM Overlay", width="stretch")
 
 elif page == "Results & Evaluation":
     st.title("V2 Results & Evaluation")
