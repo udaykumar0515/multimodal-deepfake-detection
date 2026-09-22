@@ -307,8 +307,8 @@ if page == "Detection":
                         orig_img = denormalize_image(results["video_tensor"][f_idx])
                         overlay = create_overlay(orig_img, results["hm_video"][f_idx])
                         with cols[idx]:
-                            st.image(orig_img, caption=f"Frame {f_idx} (Original)", use_column_width=True)
-                            st.image(overlay, caption=f"Frame {f_idx} (Grad-CAM)", use_column_width=True)
+                            st.image(orig_img, caption=f"Frame {f_idx} (Original)", use_container_width=True)
+                            st.image(overlay, caption=f"Frame {f_idx} (Grad-CAM)", use_container_width=True)
                             
                     st.markdown("---")
                     st.subheader("Audio Grad-CAM (Audio Head)")
@@ -316,9 +316,9 @@ if page == "Detection":
                     overlay_aud = create_overlay(orig_aud, results["hm_audio"])
                     ac1, ac2 = st.columns(2)
                     with ac1:
-                        st.image(orig_aud, caption="Spectrogram (Original)", use_column_width=True)
+                        st.image(orig_aud, caption="Spectrogram (Original)", use_container_width=True)
                     with ac2:
-                        st.image(overlay_aud, caption="Spectrogram (Grad-CAM)", use_column_width=True)
+                        st.image(overlay_aud, caption="Spectrogram (Grad-CAM)", use_container_width=True)
 
     elif modality == "Image":
         uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
@@ -338,9 +338,9 @@ if page == "Detection":
                     
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.image(orig_img, caption="Cropped Face (Original)", use_column_width=True)
+                        st.image(orig_img, caption="Cropped Face (Original)", use_container_width=True)
                     with c2:
-                        st.image(overlay, caption="Grad-CAM Overlay", use_column_width=True)
+                        st.image(overlay, caption="Grad-CAM Overlay", use_container_width=True)
 
     elif modality == "Audio":
         uploaded_file = st.file_uploader("Upload Audio", type=["wav", "mp3", "m4a"])
@@ -360,9 +360,9 @@ if page == "Detection":
                     
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.image(orig_aud, caption="Spectrogram (Original)", use_column_width=True)
+                        st.image(orig_aud, caption="Spectrogram (Original)", use_container_width=True)
                     with c2:
-                        st.image(overlay, caption="Grad-CAM Overlay", use_column_width=True)
+                        st.image(overlay, caption="Grad-CAM Overlay", use_container_width=True)
 
 elif page == "Results & Evaluation":
     st.title("V2 Results & Evaluation")
