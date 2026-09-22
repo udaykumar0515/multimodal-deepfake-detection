@@ -455,3 +455,14 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - V2 Checkpointing architecture implemented to save `v2_best_model.pt` separately without corrupting V1 archives.
 - **Sanity Test:**
   - A dry-run pipeline test (`scratch/sanity_train.py`) verified the entire computational graph. Gradients safely propagated backward from the summation loss into the visual backbone, audio backbone, and all isolated projection heads without NaNs.
+
+## Phase 14: V2 Final Training Verification & Entry Point
+- **Status:** READY TO TRAIN
+- **Implementation:** Created the master execution script `scripts/train_v2.py`.
+- **Pre-Flight Verification:** 
+  - Validated DataLoader instantiation (handling all CSV manifests seamlessly via `WeightedRandomSampler`).
+  - Verified `MultiHeadDeepfakeModel(pretrained=True)` strictly initializes ImageNet weights globally for EfficientNet-B0 visual and audio backbones.
+  - Successfully coupled the V2 Model and V2 DataLoaders with the V2 Multi-Task Trainer.
+  - Rectified a PyTorch deprecation issue (`verbose` argument in `ReduceLROnPlateau`).
+  - The script is fully parameterized to run `batch_size=4`, `lr=1e-4`, `wd=1e-4`, `gamma=2.0`, `grad_clip=1.0` utilizing AMP.
+- **Next Step:** Manual execution of `scripts/train_v2.py` via PowerShell.

@@ -39,7 +39,7 @@ class Trainer:
             weight_decay=weight_decay
         )
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode='min', patience=2, factor=0.5, verbose=True
+            self.optimizer, mode='min', patience=2, factor=0.5
         )
         self.scaler = GradScaler()
         
