@@ -1,4 +1,8 @@
-from training.losses import BinaryFocalLoss
-from training.trainer import Trainer
+from .losses import MultiTaskFocalLoss, BinaryFocalLoss
+from .trainer import Trainer
 
-__all__ = ["BinaryFocalLoss", "Trainer"]
+__all__ = [
+    "MultiTaskFocalLoss",
+    "BinaryFocalLoss",
+    "Trainer",
+]

@@ -1,292 +1,168 @@
-"""
-Trainer
-=======
-Encapsulates the full training + validation loop for the multimodal
-deepfake detection model.
-
-Responsibilities:
-    - Training loop with AMP/GradScaler on CUDA
-    - Validation loop (eval mode, no grad)
-    - Focal Loss integration
-    - Epoch-level progress display via tqdm
-    - Checkpoint saving (latest + best)
-    - Resume from checkpoint
-    - Training history JSON logging
-    - Learning-rate scheduler step
-    - Comprehensive metric calculation (Loss, Acc, Prec, Rec, F1, AUC)
-"""
-
 import os
-import json
-import time
-import copy
 import torch
+import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from torch.cuda.amp import GradScaler, autocast
+from sklearn.metrics import accuracy_score, f1_score
+from typing import Dict, Optional, Any
+from pathlib import Path
 
-from training.losses import BinaryFocalLoss
-
+from .losses import MultiTaskFocalLoss
 
 class Trainer:
     """
-    Args:
-        model:           MultimodalDeepfakeModel instance
-        train_loader:    Training DataLoader (with WeightedRandomSampler)
-        val_loader:      Validation DataLoader
-        config (dict):   Training hyper-parameters and paths
-        device:          torch.device
+    V2 Multi-Task Trainer for Deepfake Detection.
+    Jointly optimizes Image, Audio, and Fusion heads via equal unweighted summation.
     """
-    def __init__(self, model, train_loader: DataLoader,
-                 val_loader: DataLoader, config: dict,
-                 device: torch.device) -> None:
-        self.model        = model.to(device)
+    def __init__(
+        self,
+        model: nn.Module,
+        train_loader,
+        val_loader,
+        learning_rate: float = 1e-4,
+        weight_decay: float = 1e-4,
+        focal_gamma: float = 2.0,
+        gradient_clip: float = 1.0,
+        device: torch.device = torch.device('cpu'),
+        checkpoint_dir: str = 'checkpoints'
+    ):
+        self.model = model.to(device)
         self.train_loader = train_loader
-        self.val_loader   = val_loader
-        self.config       = config
-        self.device       = device
-
-        # ── Loss ──────────────────────────────────────────────────────────────
-        self.criterion = BinaryFocalLoss(gamma=config["focal_gamma"])
-
-        # ── Optimizer ─────────────────────────────────────────────────────────
+        self.val_loader = val_loader
+        self.device = device
+        self.gradient_clip = gradient_clip
+        
+        self.criterion = MultiTaskFocalLoss(gamma=focal_gamma).to(device)
         self.optimizer = optim.AdamW(
-            model.parameters(),
-            lr=config["learning_rate"],
-            weight_decay=config["weight_decay"],
+            self.model.parameters(), 
+            lr=learning_rate, 
+            weight_decay=weight_decay
         )
-
-        # ── Scheduler (CosineAnnealingLR) ─────────────────────────────────────
-        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer,
-            T_max=config["num_epochs"],
-            eta_min=config["learning_rate"] * 0.01,
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer, mode='min', patience=2, factor=0.5, verbose=True
         )
-
-        # ── AMP ───────────────────────────────────────────────────────────────
-        self.use_amp = (device.type == "cuda")
-        self.scaler  = torch.amp.GradScaler("cuda") if self.use_amp else None
-
-        # ── State ─────────────────────────────────────────────────────────────
-        self.start_epoch   = 0
-        self.best_val_loss = float("inf")
-        self.history       = []
-
-        # ── Paths ─────────────────────────────────────────────────────────────
-        self.ckpt_dir      = config["checkpoint_dir"]
-        self.history_path  = config.get("history_path", "training_history.json")
-        os.makedirs(self.ckpt_dir, exist_ok=True)
-
-    # ── Public API ─────────────────────────────────────────────────────────────
-
-    def train(self) -> None:
-        """Run the complete training loop for config['num_epochs'] epochs."""
-        num_epochs = self.config["num_epochs"]
-
-        for epoch in range(self.start_epoch, num_epochs):
-            epoch_start = time.time()
-
-            train_metrics = self._train_epoch(epoch, num_epochs)
-            val_metrics   = self._validate_epoch(epoch, num_epochs)
-
-            self.scheduler.step()
-
-            lr_now     = self.scheduler.get_last_lr()[0]
-            epoch_time = time.time() - epoch_start
-
-            # ── Epoch summary ──────────────────────────────────────────────
-            print(
-                f"\nEpoch {epoch + 1}/{num_epochs} | "
-                f"Train Loss: {train_metrics['loss']:.4f} Acc: {train_metrics['acc']:.4f} F1: {train_metrics['f1']:.4f} | "
-                f"Val Loss: {val_metrics['loss']:.4f} Acc: {val_metrics['acc']:.4f} F1: {val_metrics['f1']:.4f} | "
-                f"LR: {lr_now:.2e} | Time: {epoch_time:.1f}s"
-            )
-
-            # ── History ────────────────────────────────────────────────────
-            self.history.append({
-                "epoch":           epoch + 1,
-                "train_loss":      train_metrics['loss'],
-                "train_acc":       train_metrics['acc'],
-                "train_precision": train_metrics['precision'],
-                "train_recall":    train_metrics['recall'],
-                "train_f1":        train_metrics['f1'],
-                "train_auc":       train_metrics['auc'],
-                "val_loss":        val_metrics['loss'],
-                "val_acc":         val_metrics['acc'],
-                "val_precision":   val_metrics['precision'],
-                "val_recall":      val_metrics['recall'],
-                "val_f1":          val_metrics['f1'],
-                "val_auc":         val_metrics['auc'],
-                "lr":              lr_now,
-                "time_sec":        round(epoch_time, 2),
-            })
-            self._save_history()
-
-            # ── Checkpointing ──────────────────────────────────────────────
-            self._save_checkpoint("latest.pt", epoch + 1, val_metrics['loss'])
-
-            if val_metrics['loss'] < self.best_val_loss:
-                self.best_val_loss = val_metrics['loss']
-                self._save_checkpoint("best_model.pt", epoch + 1, val_metrics['loss'])
-                print(f"  [BEST] New best val loss: {val_metrics['loss']:.4f}  ->  best_model.pt saved")
-
-        print("\n==========================================")
-        print("Training complete.")
-        print(f"Best validation loss : {self.best_val_loss:.4f}")
-        print(f"Best checkpoint      : {os.path.join(self.ckpt_dir, 'best_model.pt')}")
-        print("==========================================")
-
-    def resume(self, checkpoint_path: str) -> None:
-        """Load state from checkpoint_path and resume from the correct epoch."""
-        print(f"Resuming from checkpoint: {checkpoint_path}")
-        ckpt = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
-
-        self.model.load_state_dict(ckpt["model_state"])
-        self.optimizer.load_state_dict(ckpt["optimizer_state"])
-        self.scheduler.load_state_dict(ckpt["scheduler_state"])
-        self.start_epoch   = ckpt["epoch"]
-        self.best_val_loss = ckpt.get("best_val_loss", float("inf"))
-        self.history       = ckpt.get("history", [])
-
-        if self.scaler is not None and "scaler_state" in ckpt:
-            self.scaler.load_state_dict(ckpt["scaler_state"])
-
-        print(f"  Resumed at epoch {self.start_epoch + 1}")
-
-    # ── Private helpers ────────────────────────────────────────────────────────
-
-    def _calculate_metrics(self, all_targets: list, all_probs: list) -> dict:
-        targets_np = np.array(all_targets)
-        probs_np = np.array(all_probs)
-        preds_np = (probs_np >= 0.5).astype(int)
+        self.scaler = GradScaler()
         
-        # Guard against single-class batches causing AUC errors
-        try:
-            auc = roc_auc_score(targets_np, probs_np)
-        except ValueError:
-            auc = 0.5
-
-        return {
-            'acc': accuracy_score(targets_np, preds_np),
-            'precision': precision_score(targets_np, preds_np, zero_division=0),
-            'recall': recall_score(targets_np, preds_np, zero_division=0),
-            'f1': f1_score(targets_np, preds_np, zero_division=0),
-            'auc': auc
-        }
-
-    def _train_epoch(self, epoch: int, total_epochs: int) -> dict:
+        self.checkpoint_dir = Path(checkpoint_dir)
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.best_checkpoint_path = self.checkpoint_dir / "v2_best_model.pt"
+        self.latest_checkpoint_path = self.checkpoint_dir / "v2_latest_model.pt"
+        
+        self.best_val_loss = float('inf')
+        
+    def train_epoch(self) -> Dict[str, float]:
         self.model.train()
-        total_loss = 0.0
-        n_batches  = 0
         
-        all_targets = []
-        all_probs = []
-
-        pbar = tqdm(
-            self.train_loader,
-            desc=f"Epoch {epoch + 1}/{total_epochs} [Train]",
-            leave=False,
-            dynamic_ncols=True,
-        )
-
-        for video, audio, labels in pbar:
-            video  = video.to(self.device, non_blocking=True)
-            audio  = audio.to(self.device, non_blocking=True)
-            labels = labels.to(self.device, non_blocking=True)
-
-            self.optimizer.zero_grad(set_to_none=True)
-
-            if self.use_amp:
-                with torch.amp.autocast("cuda"):
-                    logits = self.model(video, audio)
-                    loss   = self.criterion(logits, labels)
-                self.scaler.scale(loss).backward()
+        total_loss, total_img, total_aud, total_fus = 0.0, 0.0, 0.0, 0.0
+        
+        for batch in self.train_loader:
+            video, audio, v_label, a_label, o_label = [x.to(self.device) for x in batch]
+            
+            self.optimizer.zero_grad()
+            
+            with autocast():
+                preds = self.model(video=video, audio=audio, return_all=True)
+                losses = self.criterion(preds, v_label, a_label, o_label)
+                
+            self.scaler.scale(losses['total']).backward()
+            
+            if self.gradient_clip > 0:
                 self.scaler.unscale_(self.optimizer)
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                logits = self.model(video, audio)
-                loss   = self.criterion(logits, labels)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-                self.optimizer.step()
-
-            loss_val = loss.detach().item()
-            total_loss += loss_val
-            n_batches  += 1
-            
-            with torch.no_grad():
-                probs = torch.sigmoid(logits)
-                all_probs.extend(probs.cpu().numpy().flatten())
-                all_targets.extend(labels.cpu().numpy().flatten())
-            
-            pbar.set_postfix(loss=f"{loss_val:.4f}")
-
-        metrics = self._calculate_metrics(all_targets, all_probs)
-        metrics['loss'] = total_loss / max(n_batches, 1)
-        return metrics
-
-    def _validate_epoch(self, epoch: int, total_epochs: int) -> dict:
-        self.model.eval()
-        total_loss = 0.0
-        n_batches  = 0
-        
-        all_targets = []
-        all_probs = []
-
-        pbar = tqdm(
-            self.val_loader,
-            desc=f"Epoch {epoch + 1}/{total_epochs} [Val  ]",
-            leave=False,
-            dynamic_ncols=True,
-        )
-
-        with torch.no_grad():
-            for video, audio, labels in pbar:
-                video  = video.to(self.device, non_blocking=True)
-                audio  = audio.to(self.device, non_blocking=True)
-                labels = labels.to(self.device, non_blocking=True)
-
-                if self.use_amp:
-                    with torch.amp.autocast("cuda"):
-                        logits = self.model(video, audio)
-                        loss   = self.criterion(logits, labels)
-                else:
-                    logits = self.model(video, audio)
-                    loss   = self.criterion(logits, labels)
-
-                total_loss += loss.item()
-                n_batches  += 1
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clip)
                 
-                probs = torch.sigmoid(logits)
-                all_probs.extend(probs.cpu().numpy().flatten())
-                all_targets.extend(labels.cpu().numpy().flatten())
-                
-                pbar.set_postfix(loss=f"{loss.item():.4f}")
-
-        metrics = self._calculate_metrics(all_targets, all_probs)
-        metrics['loss'] = total_loss / max(n_batches, 1)
-        return metrics
-
-    def _save_checkpoint(self, filename: str, epoch: int, val_loss: float) -> None:
-        state = {
-            "epoch":           epoch,
-            "model_state":     self.model.state_dict(),
-            "optimizer_state": self.optimizer.state_dict(),
-            "scheduler_state": self.scheduler.state_dict(),
-            "best_val_loss":   self.best_val_loss,
-            "history":         self.history,
-            "config":          self.config,
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            
+            total_loss += losses['total'].item()
+            total_img += losses['image'].item()
+            total_aud += losses['audio'].item()
+            total_fus += losses['fusion'].item()
+            
+        num_batches = len(self.train_loader)
+        return {
+            'loss': total_loss / num_batches,
+            'image_loss': total_img / num_batches,
+            'audio_loss': total_aud / num_batches,
+            'fusion_loss': total_fus / num_batches
         }
-        if self.scaler is not None:
-            state["scaler_state"] = self.scaler.state_dict()
 
-        path = os.path.join(self.ckpt_dir, filename)
-        torch.save(state, path)
+    @torch.no_grad()
+    def validate(self) -> Dict[str, Any]:
+        self.model.eval()
+        
+        total_loss, total_img, total_aud, total_fus = 0.0, 0.0, 0.0, 0.0
+        all_preds_fus, all_targets_fus = [], []
+        all_preds_aud, all_targets_aud = [], []
+        
+        for batch in self.val_loader:
+            video, audio, v_label, a_label, o_label = [x.to(self.device) for x in batch]
+            
+            with autocast():
+                preds = self.model(video=video, audio=audio, return_all=True)
+                losses = self.criterion(preds, v_label, a_label, o_label)
+                
+            total_loss += losses['total'].item()
+            total_img += losses['image'].item()
+            total_aud += losses['audio'].item()
+            total_fus += losses['fusion'].item()
+            
+            # Binary classification metrics for fusion & audio
+            fusion_preds = torch.sigmoid(preds['fusion']) > 0.5
+            audio_preds = torch.sigmoid(preds['audio']) > 0.5
+            
+            all_preds_fus.extend(fusion_preds.cpu().numpy())
+            all_targets_fus.extend(o_label.cpu().numpy())
+            
+            all_preds_aud.extend(audio_preds.cpu().numpy())
+            all_targets_aud.extend(a_label.cpu().numpy())
+            
+        num_batches = len(self.val_loader)
+        
+        fusion_acc = accuracy_score(all_targets_fus, all_preds_fus)
+        fusion_f1 = f1_score(all_targets_fus, all_preds_fus, zero_division=0)
+        audio_acc = accuracy_score(all_targets_aud, all_preds_aud)
+        audio_f1 = f1_score(all_targets_aud, all_preds_aud, zero_division=0)
+        
+        return {
+            'loss': total_loss / num_batches,
+            'image_loss': total_img / num_batches,
+            'audio_loss': total_aud / num_batches,
+            'fusion_loss': total_fus / num_batches,
+            'fusion_acc': float(fusion_acc),
+            'fusion_f1': float(fusion_f1),
+            'audio_acc': float(audio_acc),
+            'audio_f1': float(audio_f1)
+        }
 
-    def _save_history(self) -> None:
-        with open(self.history_path, "w") as f:
-            json.dump(self.history, f, indent=2)
+    def save_checkpoint(self, path: Path, epoch: int, metrics: Dict[str, Any]):
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict(),
+            'val_metrics': metrics,
+            # Config elements needed to rebuild model
+            'model_config': {
+                'pretrained': False, # After training, checkpoint loading sets this False
+            }
+        }, str(path))
+        
+    def step(self, epoch: int) -> Dict[str, Any]:
+        """
+        Executes one full epoch: train -> validate -> save -> step scheduler.
+        """
+        train_metrics = self.train_epoch()
+        val_metrics = self.validate()
+        
+        # Step LR scheduler based on TOTAL validation loss
+        self.scheduler.step(val_metrics['loss'])
+        
+        # Save latest
+        self.save_checkpoint(self.latest_checkpoint_path, epoch, val_metrics)
+        
+        # Save best
+        if val_metrics['loss'] < self.best_val_loss:
+            self.best_val_loss = val_metrics['loss']
+            self.save_checkpoint(self.best_checkpoint_path, epoch, val_metrics)
+            
+        return {'train': train_metrics, 'val': val_metrics}

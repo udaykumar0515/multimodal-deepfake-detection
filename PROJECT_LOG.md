@@ -442,3 +442,16 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - Confirmed deterministic un-shuffled loading for Validation and Test.
   - Tested batch shape integrity: Video `(B, 16, 3, 224, 224)`, Audio `(B, 3, 224, 224)`, Labels `(B, 1)`.
   - Confirmed correct audio path targeting (`processed_audio/spectrograms`).
+
+## Phase 13: V2 Multi-Task Loss & Trainer
+- **Status:** COMPLETE
+- **Loss Implementation:** 
+  - Extracted the numerically stable `BinaryFocalLoss` (gamma=2.0) from V1.
+  - Implemented `MultiTaskFocalLoss` which applies the focal loss equally across all three prediction heads (`total = image + audio + fusion`).
+  - Image target extraction perfectly aligns `(B, 1)` `video_label` into `(B*16, 1)` dynamically matching the unpooled sequence dimensions from the visual encoder.
+- **Trainer Implementation:** 
+  - V2 Trainer natively supports tracking metrics for all 3 sub-tasks dynamically.
+  - Retained `AdamW`, `ReduceLROnPlateau`, and AMP `GradScaler`. 
+  - V2 Checkpointing architecture implemented to save `v2_best_model.pt` separately without corrupting V1 archives.
+- **Sanity Test:**
+  - A dry-run pipeline test (`scratch/sanity_train.py`) verified the entire computational graph. Gradients safely propagated backward from the summation loss into the visual backbone, audio backbone, and all isolated projection heads without NaNs.
