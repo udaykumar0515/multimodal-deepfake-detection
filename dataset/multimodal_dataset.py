@@ -8,9 +8,16 @@ from albumentations.pytorch import ToTensorV2
 
 class MultimodalDeepfakeDataset(Dataset):
     """
-    PyTorch Dataset for Multimodal Deepfake Detection.
+    PyTorch Dataset for V2 Multi-Head Multimodal Deepfake Detection.
     Lazily loads processed .npy video frames and audio spectrograms.
     Applies temporally consistent spatial augmentations to the 16 video frames.
+    
+    Returns:
+        video_tensor: (16, 3, 224, 224)
+        audio_tensor: (3, 224, 224)
+        video_label: (1,) - Target for the Image Head
+        audio_label: (1,) - Target for the Audio Head
+        overall_label: (1,) - Target for the Fusion Head
     """
     def __init__(self, csv_path, video_dir, audio_dir, is_train=False):
         self.df = pd.read_csv(csv_path)
@@ -27,11 +34,6 @@ class MultimodalDeepfakeDataset(Dataset):
                 A.HorizontalFlip(p=0.5),
                 A.Rotate(limit=10, p=0.5),
                 A.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05, p=0.5),
-                # A.CoarseDropout doesn't natively support additional_targets perfectly for all versions,
-                # but A.CoarseDropout is deprecated in 2.x in favor of A.PixelDropout/Erasing.
-                # However, RandomCrop/transforms are safer. We will use Erasing if available, 
-                # but for simplicity and robust temporal consistency across albumentations versions,
-                # we'll stick to the core geometric and color ones here, plus standard normalization.
                 A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
                 ToTensorV2()
             ], additional_targets=additional_targets)
@@ -43,6 +45,15 @@ class MultimodalDeepfakeDataset(Dataset):
 
     def __len__(self):
         return len(self.df)
+
+    def _parse_label(self, label_str, row_idx, column_name):
+        label_str = str(label_str).strip().lower()
+        if label_str == 'real':
+            return 0.0
+        elif label_str == 'fake':
+            return 1.0
+        else:
+            raise ValueError(f"Unknown label '{label_str}' in column '{column_name}' for row {row_idx}")
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
@@ -80,15 +91,13 @@ class MultimodalDeepfakeDataset(Dataset):
         audio_np = np.load(audio_path)
         audio_tensor = torch.from_numpy(audio_np).float()
         
-        # Label mapping: Real -> 0.0, Fake -> 1.0
-        label_str = str(row['label']).strip().lower()
-        if label_str == 'real':
-            label_val = 0.0
-        elif label_str == 'fake':
-            label_val = 1.0
-        else:
-            raise ValueError(f"Unknown label {label_str} in row {idx}")
+        # Parse all three labels
+        v_lbl = self._parse_label(row['video_label'], idx, 'video_label')
+        a_lbl = self._parse_label(row['audio_label'], idx, 'audio_label')
+        o_lbl = self._parse_label(row['label'], idx, 'label')
             
-        label_tensor = torch.tensor(label_val, dtype=torch.float32)
+        video_label_tensor = torch.tensor([v_lbl], dtype=torch.float32)
+        audio_label_tensor = torch.tensor([a_lbl], dtype=torch.float32)
+        overall_label_tensor = torch.tensor([o_lbl], dtype=torch.float32)
         
-        return video_tensor, audio_tensor, label_tensor
+        return video_tensor, audio_tensor, video_label_tensor, audio_label_tensor, overall_label_tensor

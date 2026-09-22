@@ -6,8 +6,9 @@ from dataset.multimodal_dataset import MultimodalDeepfakeDataset
 
 def create_dataloaders(csv_dir, video_dir, audio_dir, batch_size=4, num_workers=4):
     """
-    Factory to create Train, Validation, and Test dataloaders.
-    Implements a WeightedRandomSampler for the training loader to handle class imbalance.
+    Factory to create Train, Validation, and Test dataloaders for the V2 Multi-Head architecture.
+    Implements a WeightedRandomSampler for the training loader based on the overall 'label'
+    to handle class imbalance, perfectly preserving the V1 balancing strategy.
     """
     train_csv = f"{csv_dir}/train.csv"
     val_csv = f"{csv_dir}/val.csv"
@@ -17,7 +18,7 @@ def create_dataloaders(csv_dir, video_dir, audio_dir, batch_size=4, num_workers=
     val_dataset = MultimodalDeepfakeDataset(val_csv, video_dir, audio_dir, is_train=False)
     test_dataset = MultimodalDeepfakeDataset(test_csv, video_dir, audio_dir, is_train=False)
     
-    # Implement Imbalance-Aware Sampling for Train Split
+    # Implement Imbalance-Aware Sampling for Train Split based on overall_label
     train_df = pd.read_csv(train_csv)
     labels = train_df['label'].str.strip().str.lower()
     

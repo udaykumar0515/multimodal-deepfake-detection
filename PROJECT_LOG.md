@@ -407,3 +407,38 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - Renders the existing visual artifacts `results/confusion_matrix.png` and `results/roc_curve.png`.
 - **Streamlit Status:**
   - Server is actively running as a daemon on `http://localhost:8501`.
+
+## Phase 10.5: Multi-Head Architecture Read-Only Analysis & Clean Restart
+- **Status:** COMPLETE
+- **Analysis Conclusion:** Investigated the old `v1_single_head` workflow and determined it scientifically invalid and technically impossible to support standalone image/audio predictions using the existing checkpoints. A multi-head multi-task architecture trained from scratch was approved.
+- **Repository Archive:**
+  - Swept all old single-head dependencies (`models/`, `dataset/`, `training/`, `checkpoints/`, `results/`, `app.py`, `scripts/train.py`, `scripts/evaluate_test.py`) into `archive/v1_single_head/` to prevent namespace collisions.
+  - Safely preserved all frozen `data/` and `preprocessing/` infrastructure intact.
+
+## Phase 11: Multi-Head Multimodal Architecture
+- **Status:** IN PROGRESS (Models implemented)
+- **Implementation Details:**
+  - `models/visual_encoder.py`: Unifies Image and Video backbone parsing (EfficientNet-B0). Extracts `(B, 1280)` mean-pooled video representations alongside `(B*T, 1280)` independent frame features.
+  - `models/audio_encoder.py`: Standard EfficientNet-B0 backbone for Log-Mel spectrograms yielding `(B, 1280)`.
+  - `models/multihead_model.py`: Implements `MultiHeadDeepfakeModel` wrapping the encoders.
+- **Prediction Heads:**
+  - `image_head`: `Linear(1280, 1)`
+  - `audio_head`: `Linear(1280, 1)`
+  - `fusion_head`: `Linear(2560, 512) -> ReLU -> Dropout -> Linear(512, 1)`
+- **Forward Capabilities:**
+  - Dynamically routes inputs to support standalone image inference, standalone audio inference, and multimodal fusion inference.
+  - Supports multi-task training by calculating independent predictions for all $16$ video frames, the audio, and the fused multimodal vector concurrently.
+
+## Phase 12: V2 Multi-Head Dataset & DataLoader
+- **Status:** COMPLETE
+- **Implementation Details:**
+  - `dataset/multimodal_dataset.py`: Rebuilt to extract and return `(video, audio, video_label, audio_label, overall_label)`. Validated mapping of `Fake -> 1.0` and `Real -> 0.0` across all sub-modalities.
+  - `dataset/dataloader_factory.py`: Implemented Train/Val/Test loaders. Retained the V1 `WeightedRandomSampler` balancing exactly against the `overall_label` to ensure mathematically identical class boundaries and sampling distribution as V1.
+- **Image-Head Training Strategy:**
+  - Decided **not** to extract a separate image dataset.
+  - The dataset simply yields the `(B, 1)` `video_label`. 
+  - The `test_dataloader.py` verification script mathematically proved that executing `.repeat_interleave(16, dim=0)` dynamically expands the `video_label` into `(B*16, 1)`, perfectly aligning with the `MultiHeadDeepfakeModel`'s `image_head` predictions `(B*16, 1)`.
+- **Verification:**
+  - Confirmed deterministic un-shuffled loading for Validation and Test.
+  - Tested batch shape integrity: Video `(B, 16, 3, 224, 224)`, Audio `(B, 3, 224, 224)`, Labels `(B, 1)`.
+  - Confirmed correct audio path targeting (`processed_audio/spectrograms`).
