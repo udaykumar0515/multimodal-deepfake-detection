@@ -502,3 +502,17 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - Confirmed non-zero gradients, successfully applied global average pooling, ReLU, min-max normalization, and spatial upsampling.
   - Correctly overlaid on denormalized video frames (0, 7, 15) and original log-mel audio spectrograms.
 - **Interpretability Constraint:** Grad-CAM provides visual attribution of which regions maximized the prediction head's activation; it does not claim to uniquely identify a physical deepfake "artifact."
+
+## Phase 17: Final V2 Streamlit Application
+- **Status:** Completed
+- **Implementation:** Built the final V2 application in the root directory (`app.py`), preserving the established V1 visual design and simplicity.
+- **Model Checkpoint:** Successfully integrates `checkpoints/v2_best_model.pt` (Epoch 6) using the `MultiHeadDeepfakeModel`.
+- **Supported Modalities & Capabilities:**
+  - **Video Analysis:** Upload `.mp4/avi/mov`. Preprocesses video and audio streams simultaneously. Returns independent predictions for Image Head, Audio Head, and Fusion Head. Generates interactive Grad-CAM explanations for both the video frames and the audio spectrogram.
+  - **Image Analysis:** Upload `.jpg/png`. Uses the `FaceCropper` and `VisualTransform` to feed directly to the Image Head. Shows independent image prediction and Visual Grad-CAM.
+  - **Audio Analysis:** Upload `.wav/mp3/m4a`. Processes audio to log-mel spectrogram, feeds the Audio Head, and outputs the audio prediction with Audio Grad-CAM.
+- **Results & Evaluation Integration:**
+  - The "Results & Evaluation" page dynamically loads and cleanly visualizes the final test metrics (`results/v2_test_metrics.json`), the four-category diagnostic table (`results/v2_modality_category_results.csv`), and all 6 ROC/Confusion Matrix curves generated in Phase 15.
+- **Verification:**
+  - App starts successfully and loads the V2 checkpoint.
+  - No Python stack traces or overly complex dashboard aesthetics exist; the UI strictly maintains the academic V1 appearance upgraded with V2 multimodal inference and explainability functionality.
