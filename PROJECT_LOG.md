@@ -560,3 +560,11 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - `gradcam/`: Visual interpretability artifacts.
   - `dataset_summary.json`: High-level subset counts.
   - `README.md`: Included a comprehensive mapping for finding specific evidence to use in project reports/papers.
+
+## Phase 21: Final Script Dependency Cleanup
+- **Status:** Completed
+- **Implementation:** Performed a rigorous dependency/role check on the `scripts/` directory to ensure only demonstrably active/required items remain.
+- **Actions:**
+  - Archived `fix_app.py` and `populate_testing_data.py` to `archive/` as they were one-time temporary utilities that have served their purpose.
+  - Retained `train.py`, `evaluate_test.py`, `preprocess_dataset_offline.py`, and `preprocess_audio_offline.py` as they constitute the core active reproduction pipeline.
+  - **Exception explicitly retained:** `generate_gradcam.py` was kept in the active `scripts/` directory. Although not routinely executed during training, it is strictly required to reproduce the visual attribution evidence in `results/gradcam/` for the final research paper/presentation.
