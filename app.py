@@ -52,10 +52,10 @@ class GradCAM:
     def save_gradient(self, module, grad_input, grad_output):
         self.gradients = grad_output[0]
 
-    def generate(self, video=None, audio=None, target_head='image'):
+    def generate(self, video=None, audio=None, image=None, target_head='image'):
         self.model.zero_grad()
         
-        preds = self.model(video=video, audio=audio, return_all=True)
+        preds = self.model(video=video, audio=audio, image=image, return_all=True)
         target_logits = preds[target_head]
         
         prob = torch.sigmoid(target_logits).mean()
@@ -208,8 +208,8 @@ def process_image(image_file):
     with st.spinner("Running Image Analysis..."):
         cam_video = GradCAM(model, model.visual_encoder.grad_cam_layer)
         
-        # We pass the image as 'image' parameter, not 'video' sequence
-        hm_video, vis_prob = cam_video.generate(video=tensor.unsqueeze(1), target_head='image') # Add dummy T=1 dimension
+        # We pass the image as 'image' parameter
+        hm_video, vis_prob = cam_video.generate(image=tensor, target_head='image')
         
     return {
         "vis_prob": vis_prob,
