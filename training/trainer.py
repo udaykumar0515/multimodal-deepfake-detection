@@ -46,8 +46,8 @@ class Trainer:
         
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        self.best_checkpoint_path = self.checkpoint_dir / "v2_best_model.pt"
-        self.latest_checkpoint_path = self.checkpoint_dir / "v2_latest_model.pt"
+        self.best_checkpoint_path = self.checkpoint_dir / "best_model.pt"
+        self.latest_checkpoint_path = self.checkpoint_dir / "latest_model.pt"
         
         self.best_val_loss = float('inf')
         

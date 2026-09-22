@@ -30,7 +30,7 @@ st.set_page_config(
     layout="wide"
 )
 
-CHECKPOINT_PATH = project_root / "checkpoints" / "v2_best_model.pt"
+CHECKPOINT_PATH = project_root / "checkpoints" / "best_model.pt"
 
 # ---------------------------------------------------------
 # UTILITY CLASSES (GRAD-CAM)
@@ -367,7 +367,7 @@ if page == "Detection":
 elif page == "Results & Evaluation":
     st.title("V2 Results & Evaluation")
     
-    metrics_path = project_root / "results" / "v2_test_metrics.json"
+    metrics_path = project_root / "results" / "metrics" / "test_metrics.json"
     if metrics_path.exists():
         with open(metrics_path, "r") as f:
             metrics = json.load(f)
@@ -391,7 +391,7 @@ elif page == "Results & Evaluation":
     st.subheader("Four-Category Modality Diagnostic")
     st.write("Demonstrates V2's successful decoupling of independent prediction heads on the test set.")
     
-    cat_path = project_root / "results" / "v2_modality_category_results.csv"
+    cat_path = project_root / "results" / "modality_analysis" / "modality_category_results.csv"
     if cat_path.exists():
         df = pd.read_csv(cat_path)
         st.dataframe(df, use_container_width=True)
@@ -399,13 +399,13 @@ elif page == "Results & Evaluation":
     st.markdown("---")
     st.subheader("Confusion Matrices")
     c1, c2, c3 = st.columns(3)
-    c1.image(str(project_root / "results" / "v2_image_confusion_matrix.png"), use_column_width=True)
-    c2.image(str(project_root / "results" / "v2_audio_confusion_matrix.png"), use_column_width=True)
-    c3.image(str(project_root / "results" / "v2_fusion_confusion_matrix.png"), use_column_width=True)
+    c1.image(str(project_root / "results" / "confusion_matrices" / "image_confusion_matrix.png"), use_container_width=True)
+    c2.image(str(project_root / "results" / "confusion_matrices" / "audio_confusion_matrix.png"), use_container_width=True)
+    c3.image(str(project_root / "results" / "confusion_matrices" / "fusion_confusion_matrix.png"), use_container_width=True)
 
     st.markdown("---")
     st.subheader("ROC Curves")
     c1, c2, c3 = st.columns(3)
-    c1.image(str(project_root / "results" / "v2_image_roc_curve.png"), use_column_width=True)
-    c2.image(str(project_root / "results" / "v2_audio_roc_curve.png"), use_column_width=True)
-    c3.image(str(project_root / "results" / "v2_fusion_roc_curve.png"), use_column_width=True)
+    c1.image(str(project_root / "results" / "roc_curves" / "image_roc_curve.png"), use_container_width=True)
+    c2.image(str(project_root / "results" / "roc_curves" / "audio_roc_curve.png"), use_container_width=True)
+    c3.image(str(project_root / "results" / "roc_curves" / "fusion_roc_curve.png"), use_container_width=True)

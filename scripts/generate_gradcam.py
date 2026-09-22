@@ -82,7 +82,7 @@ def main():
     print(f"Device: {device}")
     
     # 1. Output directory
-    output_dir = project_root / "results" / "v2_gradcam"
+    output_dir = project_root / "results" / "gradcam"
     subdirs = ['RealVideo-RealAudio', 'FakeVideo-RealAudio', 'RealVideo-FakeAudio', 'FakeVideo-FakeAudio']
     for s in subdirs:
         (output_dir / s).mkdir(parents=True, exist_ok=True)
@@ -99,7 +99,7 @@ def main():
     
     # 3. Model
     model = MultiHeadDeepfakeModel(pretrained=False).to(device)
-    checkpoint_path = project_root / "checkpoints" / "v2_best_model.pt"
+    checkpoint_path = project_root / "checkpoints" / "best_model.pt"
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     print(f"Loaded checkpoint from Epoch {checkpoint['epoch']}")

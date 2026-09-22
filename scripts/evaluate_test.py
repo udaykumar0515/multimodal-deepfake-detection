@@ -62,7 +62,7 @@ def main():
     
     loader = DataLoader(dataset, batch_size=8, shuffle=False, num_workers=4)
     
-    checkpoint_path = project_root / "checkpoints" / "v2_best_model.pt"
+    checkpoint_path = project_root / "checkpoints" / "best_model.pt"
     checkpoint = torch.load(str(checkpoint_path), map_location=device, weights_only=False)
     
     print(f"Loaded checkpoint from Epoch: {checkpoint.get('epoch')}")
@@ -150,7 +150,7 @@ def main():
         })
         
     cat_df_final = pd.DataFrame(cat_results)
-    cat_df_final.to_csv(results_dir / "v2_modality_category_results.csv", index=False)
+    cat_df_final.to_csv(results_dir / "modality_analysis" / "modality_category_results.csv", index=False)
     
     # Save Metrics JSON
     final_metrics = {
@@ -160,20 +160,20 @@ def main():
         "audio_metrics": aud_metrics,
         "fusion_metrics": fus_metrics
     }
-    with open(results_dir / "v2_test_metrics.json", "w") as f:
+    with open(results_dir / "metrics" / "test_metrics.json", "w") as f:
         json.dump(final_metrics, f, indent=4)
         
     # Save predictions
-    df.to_csv(results_dir / "v2_test_predictions.csv", index=False)
+    df.to_csv(results_dir / "predictions" / "test_predictions.csv", index=False)
     
-    # Plots
-    plot_cm(df['v_label_num'], df['img_pred'], "Image Head Confusion Matrix", results_dir / "v2_image_confusion_matrix.png")
-    plot_cm(df['a_label_num'], df['aud_pred'], "Audio Head Confusion Matrix", results_dir / "v2_audio_confusion_matrix.png")
-    plot_cm(df['o_label_num'], df['fus_pred'], "Fusion Head Confusion Matrix", results_dir / "v2_fusion_confusion_matrix.png")
+    # 5. Visualizations
+    plot_cm(df['v_label_num'], df['img_pred'], "Image Head Confusion Matrix", results_dir / "confusion_matrices" / "image_confusion_matrix.png")
+    plot_cm(df['a_label_num'], df['aud_pred'], "Audio Head Confusion Matrix", results_dir / "confusion_matrices" / "audio_confusion_matrix.png")
+    plot_cm(df['o_label_num'], df['fus_pred'], "Fusion Head Confusion Matrix", results_dir / "confusion_matrices" / "fusion_confusion_matrix.png")
     
-    plot_roc(df['v_label_num'], df['img_prob'], "Image Head ROC Curve", results_dir / "v2_image_roc_curve.png")
-    plot_roc(df['a_label_num'], df['aud_prob'], "Audio Head ROC Curve", results_dir / "v2_audio_roc_curve.png")
-    plot_roc(df['o_label_num'], df['fus_prob'], "Fusion Head ROC Curve", results_dir / "v2_fusion_roc_curve.png")
+    plot_roc(df['v_label_num'], df['img_prob'], "Image Head ROC Curve", results_dir / "roc_curves" / "image_roc_curve.png")
+    plot_roc(df['a_label_num'], df['aud_prob'], "Audio Head ROC Curve", results_dir / "roc_curves" / "audio_roc_curve.png")
+    plot_roc(df['o_label_num'], df['fus_prob'], "Fusion Head ROC Curve", results_dir / "roc_curves" / "fusion_roc_curve.png")
 
     print("\nDONE! Saved all outputs to results/")
 

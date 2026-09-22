@@ -541,3 +541,22 @@ Permanent implementation history for **Deepfake Detection Using Multimodal Learn
   - Active V2 application compiles successfully without modification.
   - No retraining or architecture changes were executed.
   - Existing V2 evaluations and Grad-CAM results were rigorously protected.
+
+## Phase 20: Final Naming Cleanup & Research Results Package
+- **Status:** Completed
+- **Implementation:** Stripped out temporary/active "V2" prefixes to formalize the Multi-Task architecture as the MAIN project.
+- **Renaming:** 
+  - `checkpoints/v2_best_model.pt` -> `checkpoints/best_model.pt`
+  - All active scripts stripped of `_v2` suffixes.
+  - V1 historical material left explicitly labeled as V1 to avoid confusion.
+- **Research Results Organization:** Consolidated `results/` into a complete research evidence store.
+  - `metrics/`: Numerical performance results and evaluation summaries.
+  - `predictions/`: Raw test predictions preserved for reproducibility.
+  - `confusion_matrices/` & `roc_curves/`: Existing charts properly sorted.
+  - `precision_recall_curves/`: Generated PR curves and Average Precision scores to handle dataset class imbalance.
+  - `performance_curves/`: Training history relocated here.
+  - `modality_analysis/`: The four-category decoupled verification.
+  - `error_analysis/`: Extracted specific False Positive and False Negative CSVs to facilitate Discussion/Limitations analysis.
+  - `gradcam/`: Visual interpretability artifacts.
+  - `dataset_summary.json`: High-level subset counts.
+  - `README.md`: Included a comprehensive mapping for finding specific evidence to use in project reports/papers.
