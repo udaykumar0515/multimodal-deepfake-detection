@@ -1,0 +1,5 @@
+Category,N,Expected Video Label,Expected Audio Label,Expected Overall Label,Image Acc,Audio Acc,Fusion Acc,Image Mean Fake Prob,Audio Mean Fake Prob,Fusion Mean Fake Prob
+RealVideo-RealAudio,75,Real,Real,Real,1.0,1.0,1.0,0.065185546875,0.01064300537109375,0.018096923828125
+FakeVideo-RealAudio,1471,Fake,Real,Fake,0.9979605710401088,0.9993201903467029,0.9979605710401088,0.98828125,0.00644683837890625,0.998046875
+RealVideo-FakeAudio,75,Real,Fake,Real,1.0,1.0,1.0,0.054412841796875,0.9892578125,0.0008182525634765625
+FakeVideo-FakeAudio,1649,Fake,Fake,Fake,1.0,0.9993935718617344,1.0,0.9951171875,0.9970703125,1.0
