@@ -6,6 +6,7 @@ from torch.cuda.amp import GradScaler, autocast
 from sklearn.metrics import accuracy_score, f1_score
 from typing import Dict, Optional, Any
 from pathlib import Path
+from tqdm import tqdm
 
 from .losses import MultiTaskFocalLoss
 
@@ -55,7 +56,8 @@ class Trainer:
         
         total_loss, total_img, total_aud, total_fus = 0.0, 0.0, 0.0, 0.0
         
-        for batch in self.train_loader:
+        pbar = tqdm(self.train_loader, desc="Training", leave=False)
+        for batch in pbar:
             video, audio, v_label, a_label, o_label = [x.to(self.device) for x in batch]
             
             self.optimizer.zero_grad()
@@ -78,6 +80,8 @@ class Trainer:
             total_aud += losses['audio'].item()
             total_fus += losses['fusion'].item()
             
+            pbar.set_postfix({"Loss": losses['total'].item()})
+            
         num_batches = len(self.train_loader)
         return {
             'loss': total_loss / num_batches,
@@ -94,7 +98,8 @@ class Trainer:
         all_preds_fus, all_targets_fus = [], []
         all_preds_aud, all_targets_aud = [], []
         
-        for batch in self.val_loader:
+        pbar = tqdm(self.val_loader, desc="Validating", leave=False)
+        for batch in pbar:
             video, audio, v_label, a_label, o_label = [x.to(self.device) for x in batch]
             
             with autocast():
