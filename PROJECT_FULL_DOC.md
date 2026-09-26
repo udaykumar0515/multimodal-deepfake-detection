@@ -737,3 +737,278 @@ The canonical manifests were generated with a deterministic identity-assignment 
 These hashes can be used to verify dataset pipeline integrity if the scripts are re-run.
 
 ---
+
+---
+
+## 7. Data Splitting and Leakage Prevention
+
+### 7.1 The Identity Leakage Problem
+
+In deepfake detection, a naive random per-video split would almost certainly place videos of the same subject (identity) in both the training and test sets. Because deepfake generation artifacts can be identity-specific — for example, the same face may be used as the manipulation source across many videos — a model could learn to recognize a particular identity's visual characteristics rather than generalising to detect synthetic manipulation. This would produce inflated test metrics that do not reflect true generalization.
+
+The project prevents this by splitting the dataset at the **identity level**: all videos containing a given source identity are assigned exclusively to one split. The test set contains 75 identities that the model has never encountered during training or validation.
+
+### 7.2 Identity-Based Split Implementation
+
+**Script:** `scripts/create_identity_split.py` (archived; canonical manifests are the active output)
+
+**Algorithm:**
+1. Load all 21,566 rows from `meta_data.csv`.
+2. Extract the 500 unique values from the `source` identity column.
+3. Sort identities deterministically (alphabetical sort ensures reproducibility independent of filesystem ordering).
+4. Assign identities to splits using fixed seed `42`: first 350 → train, next 75 → validation, final 75 → test.
+5. Merge identity assignments back to the metadata rows.
+
+**Verification checks run after generation:**
+- Zero identity overlap across train/val, train/test, and val/test.
+- All 500 identities assigned exactly once.
+- All 21,566 rows covered.
+- Zero cross-split duplicate sample paths.
+- All referenced files physically exist on disk.
+- SHA-256 hashes identical across regenerations (seed=42 is deterministic).
+
+### 7.3 Canonical Manifest Layer
+
+The initial split CSVs (`data/splits/`) preserve all 21,566 rows including the 44 duplicate rows (22 physical videos × 2 method annotations). These are the **provenance layer** — they record all original metadata.
+
+The canonical manifests (`data/dataset_split/`) contain **one row per physical video** (21,544 rows total). These are the files used by all preprocessing scripts and training/evaluation dataloaders. The deduplication policy:
+
+- For the 22 duplicated paths: one canonical row is kept; both method values are stored in `method_annotations`; both original rows are preserved in a JSON `metadata_provenance` column.
+- No label conflicts existed in any duplicate group, so deduplication does not affect ground-truth labels.
+
+All downstream operations — frame extraction, spectrogram generation, training, evaluation — consume the canonical manifests exclusively.
+
+### 7.4 Split Statistics
+
+| Split | Identities | Physical Videos | Real Videos | Fake Videos | Class Imbalance |
+|---|---|---|---|---|---|
+| Train | 350 | 15,083 | 700 (4.64%) | 14,383 (95.36%) | ~1:20.5 |
+| Validation | 75 | 3,191 | 150 (4.70%) | 3,041 (95.30%) | ~1:20.3 |
+| Test | 75 | 3,270 | 150 (4.59%) | 3,120 (95.41%) | ~1:20.8 |
+
+The class imbalance ratio (~1:20 Real:Fake) is consistent across all three splits, reflecting the dataset's natural composition. This imbalance is significant and would cause a naïve model to converge to predicting Fake for all inputs with artificially high accuracy. It is addressed in the training pipeline — see Section 10.2.
+
+### 7.5 Test Set Integrity
+
+The test split of 3,270 videos is the **held-out evaluation set**. It was not used during any training, validation, hyperparameter selection, or architectural decision. The only time test data was accessed was during the final formal evaluation (Phase 15 / `scripts/evaluate_test.py`) and Grad-CAM generation (Phase 16 / `scripts/generate_gradcam.py`). The demo samples in `testing_data/` were sourced from the test set but are used only for Streamlit demonstration, not for any training or metric computation.
+
+---
+
+## 8. Visual Preprocessing
+
+### 8.1 Overview
+
+Visual preprocessing involves two distinct phases:
+1. **Offline preprocessing** (`scripts/preprocess_dataset_offline.py`): runs once over the entire dataset to extract and save raw face-cropped frames to `data/processed_frames/` as `.npy` files.
+2. **Online/dynamic transforms** (`preprocessing/video_preprocessing.py`, `VisualTransform`): applied at dataset load time in `__getitem__` — augmentation and normalization are applied dynamically, not stored.
+
+The Streamlit application uses a subset of these same preprocessing classes (`VideoPreprocessor`, `RetinaFaceCropper`, `VisualTransform`) for live inference, ensuring inference-time preprocessing matches training-time preprocessing.
+
+### 8.2 Frame Sampling — `UniformTemporalSampler`
+
+**Class:** `preprocessing.video_preprocessing.UniformTemporalSampler`  
+**Config:** `num_frames=16`
+
+**Algorithm:**
+1. Opens the video with OpenCV and reads total frame count.
+2. Computes 16 evenly-spaced indices using `np.linspace(0, total_frames-1, 16, dtype=int)`.
+3. Reads exactly those frames, duplicating indices if the video is shorter than 16 frames.
+4. If a video has fewer frames than 16, `linspace` automatically handles it by repeating indices.
+
+**Design rationale:** Uniform temporal sampling ensures consistent coverage of the entire video regardless of duration, avoids bias towards the beginning or end, and is fully deterministic — given the same video, the same 16 frame indices are always selected.
+
+### 8.3 Face Detection and Cropping — `RetinaFaceCropper`
+
+**Class:** `preprocessing.video_preprocessing.RetinaFaceCropper`  
+**Backend:** InsightFace `FaceAnalysis` using the `det_10g` model  
+**Config:** `margin=0.20`, `target_size=(224, 224)`, `det_size=(640, 640)`  
+**Providers:** `['CUDAExecutionProvider', 'CPUExecutionProvider']` (GPU preferred)
+
+**`crop_face(frame)` algorithm:**
+1. Convert frame from RGB to BGR (InsightFace uses BGR).
+2. Run `FaceAnalysis.get(frame_bgr)` — returns a list of detected faces.
+3. If no faces detected: return `None` (triggers fallback logic).
+4. If multiple faces detected: select the **largest face by bounding-box area**.
+5. Expand the detected bounding box by `margin=20%` in each direction (clamped to image boundaries).
+6. Crop the expanded region and resize to `224×224` using `cv2.INTER_CUBIC`.
+7. Return the crop and metadata dict containing both the expanded and original bounding boxes.
+
+**`apply_bbox_and_crop(frame, bbox)` — forward-fill method:**
+Applies a previously computed bounding box (from an earlier frame) to a new frame. Applies the same margin expansion and resize. Used when direct detection fails but a prior bounding box is available.
+
+**Why 20% margin:** The margin ensures that facial context (hairline, jaw) is included in the crop, which may carry deepfake artifacts, and provides robustness against small bounding-box drift between frames.
+
+**Why largest face:** In videos with multiple visible people, the primary subject is typically the largest face. Selecting the largest is a simple heuristic that avoids the need for identity tracking.
+
+### 8.4 Fallback Hierarchy
+
+The offline preprocessing script and the `VideoPreprocessor` both implement a three-tier fallback:
+
+```
+For each of the 16 sampled frames:
+│
+├── 1. Direct RetinaFace detection
+│       → Success: crop face, update last_valid_bbox
+│
+├── 2. Forward-fill (if last_valid_bbox exists)
+│       → Apply previous bbox to current frame
+│       → Records as "forward_filled" in failure log
+│
+└── 3. Center-crop fallback (if no valid bbox ever seen)
+        → Extract 224×224 centered region from frame
+        → Resize if extracted region is smaller than 224×224
+        → Records as "center_fallback" in failure log
+        → Last resort: if even center crop has 0 pixels, uses
+          a black 224×224 zero array (edge case)
+```
+
+**Forward-fill rationale:** Validated in Phase 1.8 to have mean geometric drift of only 1.63% across the 50-video quality check. The 20% bounding-box margin absorbs this drift comfortably. The forward-fill nearly halved the center-crop fallback rate.
+
+**Center-crop fallback:** Produces the worst-quality crops (unaligned to the face) but guarantees the pipeline never crashes and always produces a complete 16-frame array. The model must tolerate these imperfect crops.
+
+**Backward-filling was explicitly excluded:** It was considered in Phase 1.8 but excluded from the frozen methodology to maintain processing simplicity and avoid introducing temporal causality issues in the offline preprocessor.
+
+### 8.5 Augmentation and Normalization — `VisualTransform`
+
+**Class:** `preprocessing.video_preprocessing.VisualTransform`
+
+**Training transforms** (`is_train=True`):
+| Transform | Parameters | Purpose |
+|---|---|---|
+| `HorizontalFlip` | p=0.5 | Geometric augmentation — mirror invariance |
+| `Rotate` | ±10°, p=1.0, INTER_CUBIC | Geometric augmentation — small rotation invariance |
+| `ColorJitter` | brightness/contrast/saturation=0.1, hue=0.05, p=1.0 | Photometric augmentation |
+| `CoarseDropout` | max 1 hole, 2–22px, p=0.1 | Occlusion regularization |
+| `Normalize` | ImageNet mean/std | Standard normalization |
+| `ToTensorV2` | — | Convert to PyTorch tensor |
+
+**Validation/Test/Inference transforms** (`is_train=False`):
+| Transform | Parameters |
+|---|---|
+| `Normalize` | ImageNet mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225] |
+| `ToTensorV2` | — |
+
+**Important:** The offline preprocessing script uses `is_train=False` (no augmentation) and stores raw uint8 crops. Augmentations are applied dynamically in the dataset `__getitem__`. This means each training epoch applies *different random augmentations* to the same stored crops, providing effective data augmentation without storing multiple augmented copies.
+
+**Temporal consistency:** In the dataset's multi-frame transform pipeline (in `multimodal_dataset.py`), all 16 frames of a sample share the same random augmentation parameters. This is achieved via `albumentations.Compose` with `additional_targets` mapping `image1` through `image15` to the same transform pipeline. This prevents inconsistency between frames (e.g., some frames flipped while others are not).
+
+### 8.6 Offline Preprocessing Output
+
+**Script:** `scripts/preprocess_dataset_offline.py`  
+**Output directory:** `data/processed_frames/`  
+**File naming:** Mirrors the dataset directory structure: `data/processed_frames/<category>/<identity>/<filename>.npy`  
+**Array format:** `np.ndarray` shape `(16, 224, 224, 3)`, dtype `uint8`, raw unaugmented face crops  
+**Skip logic:** If the `.npy` file already exists, the video is skipped — the script is fully resumable.  
+**Failure log:** Written to `data/processed_frames/failures.json`
+
+**Full preprocessing statistics:**
+| Metric | Value |
+|---|---|
+| Total videos processed | 21,544 / 21,544 |
+| Failures | 0 |
+| Total frames extracted | 344,704 |
+| Direct detection | 141,166 (41.0%) |
+| Forward-fill | 83,946 (24.4%) |
+| Center-crop fallback | 119,592 (34.7%) |
+| Output size | ~48.33 GB |
+| Runtime | ~9h 12m |
+
+### 8.7 Inference-Time Visual Preprocessing (Streamlit)
+
+At inference time in `app.py`, the `VideoPreprocessor` is used with `is_train=False`:
+- For video uploads: `VideoPreprocessor.process(video_path, return_raw_crops=True)` → then `VisualTransform(is_train=False).apply(crop)` per frame.
+- For image uploads: `RetinaFaceCropper.crop_face(img_np)` → `VisualTransform(is_train=False).apply(crop)`.
+- **Fallback in app.py:** If face detection fails on an uploaded image (e.g., `real_image_3120.jpg`), the application falls back to resizing the entire image to 224×224 rather than returning an error, ensuring graceful degradation for demo purposes.
+
+---
+
+## 9. Audio Preprocessing
+
+### 9.1 Overview
+
+Audio preprocessing also runs in two phases:
+1. **Offline extraction and spectrogram generation** (`scripts/preprocess_audio_offline.py`): runs once to extract WAV files and generate log-mel spectrogram `.npy` arrays for all 21,544 videos.
+2. **Online spectrogram generation** (in `app.py`): the `AudioExtractor` and `SpectrogramGenerator` are called live on uploaded files during Streamlit inference.
+
+### 9.2 Audio Extraction — `AudioExtractor`
+
+**Class:** `preprocessing.audio_preprocessing.AudioExtractor`  
+**Dependency:** `imageio-ffmpeg` (provides a bundled FFmpeg binary; no system FFmpeg installation required)
+
+**Constructor:** `AudioExtractor(sample_rate=16000, channels=1)` — locates the FFmpeg executable from `imageio_ffmpeg.get_ffmpeg_exe()`.
+
+**`extract(video_path, output_wav_path)` algorithm:**
+1. Validates that the source video file exists.
+2. Builds an FFmpeg command:
+   - `-vn`: discard video stream
+   - `-acodec pcm_s16le`: 16-bit PCM encoding
+   - `-ar 16000`: resample to 16 kHz
+   - `-ac 1`: downmix to mono
+3. Runs FFmpeg via `subprocess.run(..., check=True)`, suppressing terminal output.
+4. If FFmpeg fails: removes any partial output file and raises `RuntimeError`.
+
+**Output format:** 16 kHz, mono, 16-bit signed PCM WAV. Duration matches the original video duration (not truncated).
+
+**Why 16 kHz mono:** 16 kHz captures all speech-relevant frequencies (below 8 kHz by Nyquist) while keeping file sizes manageable. Mono reduces data dimensionality without losing the information relevant to deepfake detection, as voice synthesis artifacts are not stereo-specific.
+
+### 9.3 Spectrogram Generation — `SpectrogramGenerator`
+
+**Class:** `preprocessing.audio_preprocessing.SpectrogramGenerator`  
+**Output:** `float32` tensor of shape `(3, 224, 224)` stored as `.npy`
+
+**Constructor:** `SpectrogramGenerator(sample_rate=16000, n_mels=128, target_size=224)`
+
+Configures:
+- `torchaudio.transforms.MelSpectrogram`: `n_fft=1024`, `hop_length=512`, `n_mels=128`, `f_min=20 Hz`, `f_max=8000 Hz`
+- `torchaudio.transforms.AmplitudeToDB`: converts power spectrogram to dB scale
+
+**`generate(wav_path)` algorithm:**
+1. Load WAV with `torchaudio.load` → `(channels, samples)` waveform tensor.
+2. Resample to 16 kHz if needed (the extraction step enforces this, but a guard is included).
+3. Downmix to mono if multi-channel (mean across channel dimension).
+4. Apply `MelSpectrogram` → `(1, 128, time_frames)` power spectrogram.
+5. Apply `AmplitudeToDB` → log-mel spectrogram in dB.
+6. Unsqueeze to `(1, 1, 128, time_frames)`.
+7. Bilinear interpolate to `(1, 1, 224, 224)` — fixed spatial size regardless of audio duration.
+8. Squeeze to `(1, 224, 224)`.
+9. Repeat across 3 channels → `(3, 224, 224)` float32.
+
+**Why `(3, 224, 224)`:** EfficientNet-B0 expects a 3-channel 224×224 image. By treating the log-mel spectrogram as a grayscale image and replicating it to 3 channels, the pretrained backbone can process it directly without architectural modifications.
+
+**Why bilinear resize to fixed 224×224:** Audio duration varies across the dataset. Bilinear interpolation normalizes all spectrograms to the same spatial dimensions, making batch processing straightforward. The time axis is compressed or stretched to fit 224 pixels; frequency resolution (128 mel bins) is also resampled to 224 pixels.
+
+**Why log-mel (dB scale):** Human perception of audio is approximately logarithmic in both frequency and amplitude. The log-mel spectrogram compresses the dynamic range of the power spectrum, making subtle artifacts more prominent and the representation more uniform — both beneficial for neural network learning.
+
+### 9.4 Offline Preprocessing Output
+
+**Script:** `scripts/preprocess_audio_offline.py`  
+**Output directories:**
+- `data/processed_audio/raw_wav/` — extracted WAV files
+- `data/processed_audio/spectrograms/` — `.npy` spectrogram tensors
+
+**File naming:** Mirrors dataset structure: `data/processed_audio/spectrograms/<category>/<identity>/<filename>.npy`
+
+**Full preprocessing statistics:**
+| Metric | Value |
+|---|---|
+| Total videos processed | 21,544 / 21,544 |
+| Failures | 0 |
+| Skipped | 0 |
+| Output size (total) | ~15.51 GB |
+| Raw WAVs | ~3.43 GB |
+| Spectrograms | ~12.08 GB |
+| Runtime | ~46m 14s (~7.77 videos/sec) |
+
+**Skip logic:** Both raw WAV and spectrogram files are checked — if both already exist, the video is skipped. The script is fully resumable.
+
+### 9.5 Dependency Notes
+
+| Dependency | Purpose | Install note |
+|---|---|---|
+| `imageio-ffmpeg` | Bundled FFmpeg binary for audio extraction | Avoids system PATH dependency |
+| `soundfile` | torchaudio WAV backend on Windows | Must be explicitly installed: `pip install soundfile` |
+| `torchaudio` | MelSpectrogram and file loading | Part of PyTorch ecosystem |
+
+**Windows-specific issue:** On the initial audio preprocessing test, torchaudio could not load WAV files due to a missing `soundfile` backend. The error manifested as torchaudio backend load warnings. Fixed by `pip install soundfile`.
+
+---
