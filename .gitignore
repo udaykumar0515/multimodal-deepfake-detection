@@ -7,5 +7,6 @@ data/processed_frames/
 data/processed_audio/
 checkpoints/
 .vscode/
-
+PROJECT_LOG.md
+PROJECT_FULL_DOC.md
 archive/
