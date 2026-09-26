@@ -1012,3 +1012,315 @@ Configures:
 **Windows-specific issue:** On the initial audio preprocessing test, torchaudio could not load WAV files due to a missing `soundfile` backend. The error manifested as torchaudio backend load warnings. Fixed by `pip install soundfile`.
 
 ---
+
+---
+
+## 10. Dataset/DataLoader Implementation
+
+### 10.1 MultimodalDeepfakeDataset
+
+**File:** `dataset/multimodal_dataset.py`  
+**Class:** `MultimodalDeepfakeDataset(Dataset)`
+
+**Purpose:** A PyTorch `Dataset` that lazily loads preprocessed `.npy` video frame arrays and audio spectrogram arrays for a given split, applies temporally consistent augmentation, parses three separate labels, and returns a five-element tuple per sample.
+
+**Constructor:** `MultimodalDeepfakeDataset(csv_path, video_dir, audio_dir, is_train=False)`
+- Reads the canonical CSV manifest (one row per video).
+- Constructs an `albumentations.Compose` pipeline with `additional_targets` — keys `image1` through `image15` all declared as type `'image'` — so all 16 frames receive identical random transforms per sample.
+
+**`__getitem__(idx)` algorithm:**
+1. Read `sample_path` from the DataFrame row.
+2. Derive `.npy` paths: `video_dir/<base_path>.npy` and `audio_dir/<base_path>.npy`. Raises `FileNotFoundError` if either is missing.
+3. Load video: `np.load(video_path)` → `(16, 224, 224, 3)` uint8 array.
+4. Build albumentations kwargs: `{'image': frame_0, 'image1': frame_1, ..., 'image15': frame_15}`.
+5. Apply the transform pipeline (augmentation + normalization) once — all 16 frames share the same random seed for this call.
+6. Reconstruct as `torch.stack([transformed['image'], ...])` → `(16, 3, 224, 224)` float32.
+7. Load audio: `np.load(audio_path)` → `(3, 224, 224)` float32 → `torch.from_numpy().float()`.
+8. Parse all three labels via `_parse_label`:
+   - `video_label` (column `video_label`) → Image Head target
+   - `audio_label` (column `audio_label`) → Audio Head target
+   - `overall_label` (column `label`) → Fusion Head target
+   - Mapping: `'real' → 0.0`, `'fake' → 1.0` (case-insensitive, stripped)
+9. Return `(video_tensor, audio_tensor, video_label_tensor, audio_label_tensor, overall_label_tensor)`.
+
+**Training vs. Validation/Test augmentation:**
+
+| Mode | Transforms applied |
+|---|---|
+| `is_train=True` | HorizontalFlip (p=0.5) + Rotate ±10° (p=0.5) + ColorJitter (p=0.5) + Normalize + ToTensorV2 |
+| `is_train=False` | Normalize + ToTensorV2 only |
+
+No augmentation is ever applied at eval time — this is critical for reproducible validation and test metric computation.
+
+### 10.2 Class Imbalance Handling
+
+**Problem:** The training split has a severe class imbalance — approximately 4.64% Real (700) vs 95.36% Fake (14,383). A naïve DataLoader would produce batches that are ~95% Fake, which would allow a model to achieve high accuracy by predicting Fake for everything, and would starve the Real class of gradient signal.
+
+**Solution — `WeightedRandomSampler`:**
+
+The factory computes per-sample sampling weights as the inverse of their class frequency:
+- `weight_real = 1.0 / 700` (each Real sample is assigned this weight)
+- `weight_fake = 1.0 / 14383` (each Fake sample is assigned this weight)
+
+The `WeightedRandomSampler` draws `len(dataset)` samples with replacement, using these weights. The result is that each training batch contains approximately equal numbers of Real and Fake samples (~50/50), regardless of the dataset's natural distribution.
+
+**Key implementation details:**
+- `num_samples=len(dataset)` — the epoch length (number of batches) is preserved; the sampler does not artificially inflate or shrink the epoch.
+- `replacement=True` — Real samples are drawn multiple times per epoch (oversampling); Fake samples are drawn less often than their full count (undersampling).
+- The sampler applies only to the training DataLoader. Validation and test use `shuffle=False`, sequential loading — the natural unbalanced distribution is preserved, which is required for realistic performance estimation.
+
+**Complementary — `BinaryFocalLoss`:** The loss function provides a second level of imbalance handling by down-weighting easy-to-classify examples (which are disproportionately Fake), reducing the effective dominance of the majority class even within balanced batches.
+
+### 10.3 DataLoader Configuration
+
+**File:** `dataset/dataloader_factory.py`  
+**Entry point:** `create_dataloaders(csv_dir, video_dir, audio_dir, batch_size, num_workers)`
+
+| Setting | Train | Val | Test |
+|---|---|---|---|
+| `batch_size` | 4 | 4 | 8 (in evaluation script) |
+| `sampler` | `WeightedRandomSampler` | None | None |
+| `shuffle` | N/A (sampler overrides) | False | False |
+| `num_workers` | 4 | 4 | 4 |
+| `pin_memory` | True | True | True |
+| `drop_last` | True | False | False |
+
+`drop_last=True` for training discards the final incomplete batch per epoch, ensuring consistent batch sizes with the AMP-enabled training loop.
+
+`pin_memory=True` enables faster CPU→GPU memory transfers by using pinned (page-locked) memory for DataLoader output tensors.
+
+---
+
+## 11. Loss Function and Training Strategy
+
+### 11.1 BinaryFocalLoss
+
+**File:** `training/losses.py`  
+**Class:** `BinaryFocalLoss(gamma=2.0, reduction='mean')`
+
+Focal Loss was introduced to address extreme class imbalance in object detection (Lin et al., 2017) and is directly applicable here. It modifies standard Binary Cross-Entropy by multiplying each sample's loss by a modulating factor `(1 - p_t)^gamma`, where `p_t` is the model's predicted probability for the correct class.
+
+**Mathematical formulation:**
+```
+BCE(logit, target) = -[target * log(sigmoid(logit)) + (1-target) * log(1-sigmoid(logit))]
+
+p_t = sigmoid(logit)     if target == 1
+    = 1 - sigmoid(logit)  if target == 0
+
+Focal Weight = (1 - p_t)^gamma
+
+Loss = Focal_Weight * BCE(logit, target)
+```
+
+**Implementation detail:** The raw BCE term is computed using `F.binary_cross_entropy_with_logits(logits, targets, reduction='none')` — this is numerically stable because it combines the sigmoid and cross-entropy in a single stable log-sum-exp operation rather than computing `sigmoid(logit)` and then taking `log`. The sigmoid for the focal weight computation is calculated separately.
+
+**Effect of `gamma=2.0`:**
+- If the model is highly confident and correct (p_t ≈ 1): weight ≈ `(1-1)^2 = 0` → near-zero loss (easy example down-weighted)
+- If the model is uncertain or wrong (p_t ≈ 0): weight ≈ `(1-0)^2 = 1` → full BCE loss preserved (hard example fully penalized)
+- This focuses gradient on genuinely difficult or misclassified examples, preventing the loss from being dominated by the many easy Fake predictions.
+
+### 11.2 MultiTaskFocalLoss
+
+**File:** `training/losses.py`  
+**Class:** `MultiTaskFocalLoss(gamma=2.0)`
+
+Wraps `BinaryFocalLoss` and applies it independently to all three prediction heads.
+
+**Forward signature:** `forward(preds: dict, video_label, audio_label, overall_label) -> dict`
+
+**Loss computation:**
+```
+fusion_loss = BinaryFocalLoss(preds['fusion'], overall_label)
+audio_loss  = BinaryFocalLoss(preds['audio'], audio_label)
+
+# Image head produces (B*T, 1) frame-level logits.
+# video_label is (B, 1). Expand via repeat_interleave:
+expanded_label = video_label.repeat_interleave(T, dim=0)  # (B*T, 1)
+image_loss = BinaryFocalLoss(preds['image'], expanded_label)
+
+total_loss = image_loss + audio_loss + fusion_loss
+```
+
+**Returns:** `{'total': ..., 'image': ..., 'audio': ..., 'fusion': ...}`
+
+**Design choice — equal unweighted summation:** All three head losses contribute equally to the total. No loss weighting was applied. The rationale is that the project's primary goal is modality decoupling, not maximizing a single head's accuracy. Equal weighting ensures no head is systematically privileged.
+
+**`repeat_interleave` explanation:** During the forward pass with `return_all=True`, the visual encoder returns `(B×T, 1280)` unpooled frame features, and the image head produces `(B×T, 1)` per-frame logits. The `video_label` is `(B, 1)` — one label per video, not per frame. `repeat_interleave(T, dim=0)` expands `[label_vid1, label_vid2]` to `[label_vid1, label_vid1, ...(×T), label_vid2, label_vid2, ...(×T)]`, correctly matching each frame's logit to its video's label. This avoids creating a separate per-frame label dataset.
+
+### 11.3 Optimizer and Scheduler
+
+**Optimizer:** `AdamW(lr=1e-4, weight_decay=1e-4)`
+- AdamW decouples weight decay from the gradient update step, which produces better regularization than the original Adam with L2 penalty.
+- `lr=1e-4` is the standard recommended starting rate for fine-tuning pretrained EfficientNet models.
+- `weight_decay=1e-4` provides moderate L2 regularization.
+
+**Scheduler:** `ReduceLROnPlateau(mode='min', patience=2, factor=0.5)`
+- Monitors total validation loss.
+- If validation loss does not improve for 2 consecutive epochs, the learning rate is reduced by 50%.
+- This allows the model to explore efficiently at a higher learning rate early in training and fine-tune at lower rates if it plateaus.
+
+**Note:** The V1 architecture used `CosineAnnealingLR`. The switch to `ReduceLROnPlateau` in V2 was made to produce adaptive decay conditioned on actual validation performance rather than a fixed schedule.
+
+### 11.4 Automatic Mixed Precision (AMP)
+
+`torch.cuda.amp.GradScaler` and `torch.cuda.amp.autocast` are used throughout training and evaluation. AMP reduces memory usage by performing forward passes in `float16` where precision is not critical, while maintaining `float32` precision for the loss and gradient computations. The `GradScaler` scales the loss before the backward pass and unscales gradients before the optimizer step to prevent numerical underflow in float16.
+
+**Observed VRAM usage (RTX 4050, batch_size=4):** 3.03 GB allocated / 3.27 GB reserved (out of 6 GB).
+
+### 11.5 Gradient Clipping
+
+`torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)` is applied after `scaler.unscale_()` and before `scaler.step()`. This prevents gradient explosions that can destabilize training, particularly relevant in multi-task settings where gradients from three separate loss terms accumulate in the shared backbone parameters.
+
+---
+
+## 12. Training and Checkpoint Selection
+
+### 12.1 Training Entry Point
+
+**Script:** `scripts/train.py`  
+**Command:** `.\.venv_gpu\Scripts\python.exe scripts\train.py`
+
+The script configures all hyperparameters, instantiates the DataLoaders, model, and Trainer, then runs a 10-epoch loop printing per-epoch summaries. All epoch history is logged to `results/performance_curves/training_history.json`.
+
+**Final configuration used:**
+
+| Hyperparameter | Value |
+|---|---|
+| `batch_size` | 4 |
+| `num_epochs` | 10 |
+| `learning_rate` | 1e-4 |
+| `weight_decay` | 1e-4 |
+| `focal_gamma` | 2.0 |
+| `gradient_clip` | 1.0 |
+| `num_workers` | 4 |
+| `pretrained` | True (ImageNet weights) |
+| `dropout` | 0.3 |
+
+### 12.2 Hardware
+
+| Component | Value |
+|---|---|
+| GPU | NVIDIA GeForce RTX 4050 Laptop GPU |
+| VRAM | 6 GB |
+| CUDA | 11.8 |
+| Peak VRAM (training) | 3.03 GB allocated / 3.27 GB reserved |
+
+### 12.3 Complete Epoch-Level Training History
+
+All values sourced directly from `results/performance_curves/training_history.json`.
+
+| Epoch | Train Total | Train Img | Train Aud | Train Fus | Val Total | Val Img | Val Aud | Val Fus | Val Fus Acc | Val Aud Acc |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 0.0743 | 0.0337 | 0.0170 | 0.0236 | 0.0258 | 0.0137 | 0.0005 | 0.0116 | 99.81% | 99.87% |
+| 2 | 0.0187 | 0.0096 | 0.0029 | 0.0061 | 0.0353 | 0.0196 | 0.0055 | 0.0102 | 99.53% | 99.53% |
+| 3 | 0.0147 | 0.0076 | 0.0028 | 0.0044 | 0.0339 | 0.0192 | 0.0007 | 0.0141 | 99.69% | 99.97% |
+| 4 | 0.0100 | 0.0051 | 0.0015 | 0.0034 | 0.0223 | 0.0120 | 0.0002 | 0.0101 | 99.81% | 99.97% |
+| 5 | 0.0111 | 0.0056 | 0.0021 | 0.0034 | 0.0211 | 0.0115 | 0.0001 | 0.0095 | 99.72% | 100.00% |
+| **6** | **0.0088** | **0.0039** | **0.0022** | **0.0027** | **0.0189** | **0.0096** | **0.0000** | **0.0093** | **99.81%** | **100.00%** |
+| 7 | 0.0079 | 0.0039 | 0.0013 | 0.0026 | 0.0292 | 0.0171 | 0.0000 | 0.0121 | 99.50% | 100.00% |
+| 8 | 0.0065 | 0.0029 | 0.0010 | 0.0026 | 0.0452 | 0.0255 | 0.0001 | 0.0196 | 99.00% | 100.00% |
+| 9 | 0.0083 | 0.0041 | 0.0008 | 0.0034 | 0.0784 | 0.0559 | 0.0001 | 0.0225 | 98.40% | 100.00% |
+| 10 | 0.0042 | 0.0020 | 0.0006 | 0.0016 | 0.0697 | 0.0359 | 0.0000 | 0.0338 | 97.77% | 100.00% |
+
+**Bold row = best checkpoint (Epoch 6).**
+
+### 12.4 Training Dynamics Observations
+
+**Rapid audio convergence:** The audio head loss collapsed to near-zero by Epoch 6 (`val audio_loss = 0.0000`) and the Audio Head achieved 100% validation accuracy. Audio deepfake detection is an easier signal for the model to learn, likely because GAN/synthesis artifacts in the audio spectrogram are more distinctive than visual artifacts. Audio accuracy remained at 100% for all epochs 6–10.
+
+**Image head drives overfitting:** From Epoch 7 onwards, the total validation loss increased despite the training loss continuing to decrease. Inspecting per-head losses reveals that the image loss on validation grew substantially (0.0096 at Epoch 6 → 0.0559 at Epoch 9), while the audio and fusion heads remained stable. The image head learned to overfit to the training distribution of visual artifacts after Epoch 6.
+
+**Fusion head follows image head:** The fusion head's validation loss also increased post-Epoch 6, which is expected since it concatenates visual and audio features — the visual overfitting propagates into the fused representation.
+
+**Conclusion — Epoch 6 is the correct best checkpoint:** Epoch 6 represents the optimal bias-variance tradeoff across all three heads simultaneously: the audio head had converged to near-perfect accuracy, the image head had not yet overfit, and the fusion head was at its lowest validation loss.
+
+### 12.5 Checkpoint Selection and Saving
+
+**Best checkpoint criterion:** Saved whenever total validation loss is strictly lower than the previous best. The best checkpoint across all 10 epochs is **Epoch 6** (`val total_loss = 0.0189`).
+
+**Checkpoint file:** `checkpoints/best_model.pt`  
+**Latest checkpoint file:** `checkpoints/latest_model.pt` (overwritten every epoch)
+
+**Checkpoint contents:**
+```python
+{
+    'epoch': 6,
+    'model_state_dict': model.state_dict(),
+    'optimizer_state_dict': optimizer.state_dict(),
+    'scheduler_state_dict': scheduler.state_dict(),
+    'val_metrics': { ... },   # per-head val metrics at this epoch
+    'model_config': {'pretrained': False}
+}
+```
+
+**Loading at evaluation/inference time:**
+```python
+checkpoint = torch.load('checkpoints/best_model.pt', map_location=device, weights_only=False)
+model = MultiHeadDeepfakeModel(pretrained=False)
+model.load_state_dict(checkpoint['model_state_dict'])
+model.eval()
+```
+
+`weights_only=False` is required because the checkpoint contains non-tensor Python objects. `pretrained=False` is correct at load time — the trained weights from the checkpoint override the backbone initialization.
+
+---
+
+## 13. Evaluation Methodology
+
+### 13.1 Evaluation Entry Point
+
+**Script:** `scripts/evaluate_test.py`  
+**Command:** `.\.venv_gpu\Scripts\python.exe scripts\evaluate_test.py`
+
+The evaluation script runs a single inference pass over the entire held-out test set (3,270 samples) using the `best_model.pt` checkpoint. No gradient computation is performed (`torch.no_grad()`). AMP is used for consistent numerical behavior with training.
+
+### 13.2 Image Head Probability Aggregation
+
+During evaluation, the image head produces `(B×16, 1)` per-frame logits for each batch. These are converted to per-frame probabilities and averaged across the 16 frames to yield one image-head probability per video:
+
+```python
+img_probs = torch.sigmoid(img_logits).view(B, 16).mean(dim=1)  # (B,)
+```
+
+This mirrors the implicit aggregation that the model learns during training (where the mean-pooled `(B, 1280)` video representation feeds the fusion head). At evaluation, frame-level logits are returned directly and averaged post-sigmoid to produce a stable per-video probability estimate.
+
+### 13.3 Classification Threshold
+
+All three heads use a threshold of `0.5`:
+- `img_pred = (img_prob > 0.5).astype(float)`
+- `aud_pred = (aud_prob > 0.5).astype(float)`
+- `fus_pred = (fus_prob > 0.5).astype(float)`
+
+No threshold tuning was performed. The default 0.5 threshold is used throughout.
+
+### 13.4 Metrics Computed
+
+For each of the three prediction heads independently, the following metrics are computed against the respective ground-truth labels:
+
+| Metric | Description | Implementation |
+|---|---|---|
+| **Accuracy** | Overall correct classification rate | `sklearn.metrics.accuracy_score` |
+| **Precision** | TP / (TP + FP) | `precision_score(zero_division=0)` |
+| **Recall** | TP / (TP + FN) | `recall_score(zero_division=0)` |
+| **F1 Score** | Harmonic mean of Precision and Recall | `f1_score(zero_division=0)` |
+| **ROC-AUC** | Area under the ROC curve (threshold-independent) | `roc_auc_score` |
+
+For the Image Head, ground-truth labels are `video_label` (`Fake` if the video was visually manipulated). For the Audio Head, ground-truth labels are `audio_label`. For the Fusion Head, ground-truth labels are `overall_label` (same as `video_label`).
+
+### 13.5 Four-Category Modality Diagnostic
+
+The evaluation script additionally computes per-category accuracy and mean fake probabilities for all three heads, stratified by the four `type` categories (`RealVideo-RealAudio`, `FakeVideo-RealAudio`, `RealVideo-FakeAudio`, `FakeVideo-FakeAudio`). This diagnostic is the core scientific evidence for modality decoupling and is documented in full in Section 14.
+
+### 13.6 Outputs Generated
+
+| Output | Location |
+|---|---|
+| Global per-head metrics JSON | `results/metrics/test_metrics.json` |
+| Per-sample predictions + probabilities | `results/predictions/test_predictions.csv` |
+| Image/Audio/Fusion confusion matrices | `results/confusion_matrices/*.png` |
+| Image/Audio/Fusion ROC curves | `results/roc_curves/*.png` |
+| Four-category modality diagnostic CSV | `results/modality_analysis/modality_category_results.csv` |
+
+All outputs are deterministic — re-running the script with the same checkpoint and test set will produce identical results.
+
+---
