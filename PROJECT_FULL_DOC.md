@@ -1658,3 +1658,108 @@ This renders via `st.markdown(unsafe_allow_html=True)`.
 | Model cached across sessions | `@st.cache_resource` ensures the model is loaded once per server process, not per user interaction |
 
 ---
+
+---
+
+## 18. Testing and Demonstration Data
+
+### 18.1 Purpose
+
+The `testing_data/` directory contains a curated set of sample media files. These files are used **exclusively for manual testing and demonstration** within the Streamlit application. They are explicitly excluded from the canonical training, validation, and testing manifests used for model evaluation. 
+
+Having a separate testing directory allows the user to immediately verify the application's functionality (including the Streamlit UI, preprocessing pipeline, and model inference) without needing to download the 50GB+ full FakeAVCeleb dataset.
+
+### 18.2 Structure and Content
+
+The directory is structured by modality and label, allowing users to test specific inference paths in the application:
+
+```text
+testing_data/
+├── README.md                           ← Directory documentation
+├── images/
+│   ├── real/                           ← Authentic, unmanipulated face crops
+│   └── fake/                           ← Synthetically manipulated face crops
+├── audio/
+│   ├── real/                           ← Authentic pristine audio clips
+│   └── fake/                           ← Synthesized/deepfake audio clips
+└── videos/
+    ├── real_video_real_audio/          ← Both modalities authentic
+    ├── fake_video_real_audio/          ← Visually manipulated, audio authentic
+    ├── real_video_fake_audio/          ← Visually authentic, audio manipulated
+    └── fake_video_fake_audio/          ← Both modalities manipulated
+```
+
+### 18.3 The Four Video Categories
+
+The `videos/` subdirectory mirrors the four fundamental categories of the FakeAVCeleb dataset. This is critical for demonstrating the V2 architecture's core scientific achievement: modality decoupling. By testing a video from `real_video_fake_audio`, the user can observe the application's Image Head correctly predicting "REAL" while the Audio Head independently and correctly predicts "FAKE", with the Fusion Head aggregating the result.
+
+### 18.4 Fallback Demonstration
+
+The `testing_data/` directory also contains specific samples used to verify edge-case handling. For example, `images/real/real_image_3120.jpg` is a sample where the `RetinaFaceCropper` fails to detect a face. Including this sample ensures that the Streamlit application's fallback logic (resizing the full image to 224×224 instead of crashing) can be reliably demonstrated and verified.
+
+---
+
+## 19. Historical V1 Architecture (Reference)
+
+### 19.1 The V1 Design
+
+The original V1 architecture (developed in Phases 1-7) was a traditional multimodal fusion network. 
+- **Encoders:** It used the same EfficientNet-B0 backbones for visual and audio feature extraction.
+- **Fusion:** The 1280-dimensional visual feature vector (mean-pooled across 16 frames) and the 1280-dimensional audio feature vector were concatenated into a 2560-dimensional vector.
+- **Output:** This concatenated vector was passed through a single Fusion Head (Linear → ReLU → Dropout → Linear) to produce a single binary logit representing the overall "Real" or "Fake" prediction.
+- **Loss:** The network was trained using a single Binary Cross-Entropy (BCE) loss on the final output logit.
+
+### 19.2 The Visual Dominance Failure
+
+While V1 achieved high overall accuracy (>98%), an in-depth modality analysis (Phase 13) revealed a critical structural flaw: **visual dominance**.
+
+Because visual manipulation artifacts in the FakeAVCeleb dataset are generally easier to detect than audio artifacts, the single BCE loss allowed the model to take a "shortcut". The model learned to rely almost entirely on the visual features to minimize the loss, functionally ignoring the audio features. 
+
+This failure was exposed by the `RealVideo-FakeAudio` category. For these videos, the visual stream is authentic, but the audio is deepfaked. The V1 model, ignoring the audio stream, looked only at the authentic video and incorrectly predicted "REAL" with high confidence. It was incapable of detecting audio deepfakes if the accompanying video was real.
+
+### 19.3 The V2 Solution
+
+The V2 architecture (developed in Phase 14) solved this by replacing the single output head with three independent heads (Image, Audio, Fusion), each supervised by its own independent `BinaryFocalLoss`. 
+
+This forced the Audio Encoder to learn meaningful representations (because it had to satisfy the Audio Head's loss independently of the visual stream) and forced the Image Encoder to do the same. The Fusion Head then learned to aggregate these already-strong, independent representations. As shown in the V2 results (Section 14), this completely resolved the visual dominance issue.
+
+---
+
+## 20. Limitations
+
+### 20.1 Fixed Temporal Context (16 Frames)
+
+The visual preprocessing pipeline extracts exactly 16 frames uniformly sampled across the video duration. While this provides a good summary of the video, highly localized visual artifacts (e.g., a glitch that lasts for only 3-4 frames in a 10-second video) might be missed entirely by the sampling algorithm. 
+
+### 20.2 Bounding Box Forward-Filling and Drift
+
+When `RetinaFace` fails to detect a face in a frame (often due to extreme angles, occlusion, or motion blur), the pipeline uses a forward-fill strategy: it re-uses the bounding box from the last successful detection. While a 20% margin accommodates minor movement, rapid subject movement can cause the forward-filled box to drift off the face, resulting in a low-quality crop or background crop. The fallback to a center crop is even less precise.
+
+### 20.3 Generalization to Unseen Manipulation Methods
+
+The model is trained exclusively on the FakeAVCeleb dataset, which utilizes specific generation methods (e.g., Wav2Lip, faceswap). Deepfake generation is an active adversarial field. The model's ability to generalize to completely novel, unseen synthesis methods (such as modern diffusion-based video generation or highly advanced voice cloning) has not been tested and is a known limitation of empirical deepfake detection models.
+
+### 20.4 Fixed Resolution (224x224)
+
+Both visual crops and audio spectrograms are resized to a fixed 224×224 resolution to match the EfficientNet-B0 expected input size. This downscaling inherently destroys high-frequency details. Some state-of-the-art deepfake artifacts exist at the pixel-level in high-resolution media and may be smoothed out or lost during this resizing step.
+
+---
+
+## 21. Future Work
+
+### 21.1 Architectural Upgrades
+
+*   **Vision Transformers (ViT) / Swin Transformers:** Replacing the CNN-based EfficientNet backbones with transformer-based architectures could allow the model to better capture global context and long-range dependencies in both visual frames and audio spectrograms.
+*   **Temporal Modeling:** Currently, the 16 visual frames are mean-pooled. Implementing a temporal sequence model (e.g., an LSTM, GRU, or Temporal Convolutional Network) over the frame features before the fusion head would allow the model to detect temporal inconsistencies (e.g., unnatural blinking rates or mismatched lip-sync).
+
+### 21.2 Robust Face Tracking
+
+Replacing the independent frame-by-frame `RetinaFace` detection and naive forward-filling with a dedicated, temporal face-tracking algorithm (e.g., Deep SORT or MediaPipe Face Mesh with temporal smoothing) would ensure consistent, high-quality facial crops across the entire video, minimizing the noise introduced by bounding box jitter.
+
+### 21.3 Cross-Dataset Evaluation
+
+To rigorously test generalization, the V2 model should be evaluated (without fine-tuning) on diverse external datasets such as the Deepfake Detection Challenge (DFDC), Celeb-DF, and FaceForensics++. 
+
+### 21.4 Real-time Inference Pipeline
+
+The current Streamlit application processes media completely offline (extracting all frames, extracting audio, then running inference). Optimizing the preprocessing pipeline for streaming (e.g., using a rolling buffer of frames and audio chunks) would allow the model to perform real-time deepfake detection on live video feeds or webcams.
