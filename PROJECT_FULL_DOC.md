@@ -1763,3 +1763,130 @@ To rigorously test generalization, the V2 model should be evaluated (without fin
 ### 21.4 Real-time Inference Pipeline
 
 The current Streamlit application processes media completely offline (extracting all frames, extracting audio, then running inference). Optimizing the preprocessing pipeline for streaming (e.g., using a rolling buffer of frames and audio chunks) would allow the model to perform real-time deepfake detection on live video feeds or webcams.
+
+---
+
+## 22. Setup and Reproduction
+
+### 22.1 Environment Setup
+
+The project requires Python 3.10+ and a CUDA-enabled GPU for efficient training and inference. 
+
+1. **Clone the repository.**
+2. **Create and activate the virtual environment:**
+   ```bash
+   python -m venv .venv_gpu
+   .venv_gpu\Scripts\activate
+   ```
+3. **Install dependencies:**
+   The primary dependencies are PyTorch (with CUDA support), `torchvision`, `torchaudio`, `opencv-python`, `albumentations`, `insightface`, `onnxruntime-gpu`, `imageio-ffmpeg`, `soundfile`, `pandas`, `scikit-learn`, `matplotlib`, `seaborn`, and `streamlit`.
+
+### 22.2 Preprocessing Commands
+
+Assuming the raw `Dataset_FakeAVCeleb` directory is placed in the project root:
+
+**Audio Preprocessing:**
+Extracts audio to WAV and generates log-mel spectrograms.
+```bash
+python scripts/preprocess_audio_offline.py
+```
+*(Expected output: `data/processed_audio/spectrograms/` populated)*
+
+**Visual Preprocessing:**
+Extracts 16 frames per video and applies RetinaFace cropping.
+```bash
+python scripts/preprocess_dataset_offline.py
+```
+*(Expected output: `data/processed_frames/` populated)*
+
+### 22.3 Training Command
+
+Trains the V2 Multi-Head model for 10 epochs.
+```bash
+python scripts/train.py
+```
+*(Expected output: `checkpoints/best_model.pt` saved)*
+
+### 22.4 Evaluation Commands
+
+**Formal Metric Evaluation:**
+Evaluates the best checkpoint on the held-out test set.
+```bash
+python scripts/evaluate_test.py
+```
+*(Expected output: JSON metrics, ROC/CM plots, and Modality Category CSV in `results/`)*
+
+**Grad-CAM Generation:**
+Generates interpretability heatmaps for representative samples.
+```bash
+python scripts/generate_gradcam.py
+```
+*(Expected output: Overlays in `results/gradcam/`)*
+
+### 22.5 Application Command
+
+Launches the local Streamlit application for interactive inference.
+```bash
+streamlit run app.py
+```
+*(Navigate to `http://localhost:8501`)*
+
+---
+
+## 23. Interview / Viva Memory
+
+This section provides structured Q&A to serve as the complete, long-term memory of the project's conceptual and technical decisions. It is designed to prepare the original author for technical interviews, thesis vivas, or project defenses.
+
+### 23.1 Core Conceptual Questions
+
+**Q: What was the primary motivation for creating this project?**
+A: Deepfakes are increasingly multimodal, meaning attackers manipulate both the visual stream (face-swaps) and the audio stream (voice cloning) simultaneously. Traditional deepfake detectors are unimodal (looking only at images or audio) and fail to detect manipulations in the other modality. We needed a system capable of detecting both.
+
+**Q: What is "Visual Dominance" and why was it a problem in your V1 model?**
+A: Visual Dominance is a failure mode in multimodal neural networks where the model learns to rely exclusively on the easiest feature to minimize its loss. In our V1 model (which used a single output head and a single loss), visual deepfake artifacts were easier to learn than audio artifacts. As a result, the model ignored the audio stream entirely. If presented with a video containing real visual footage but a cloned (fake) voice, V1 predicted it was "Real".
+
+**Q: How did the V2 architecture solve the Visual Dominance problem?**
+A: We implemented "Modality Decoupling" by restructuring the network into a Multi-Task architecture. Instead of a single output head, V2 has three independent prediction heads: an Image Head, an Audio Head, and a Fusion Head. Crucially, the Image Head and Audio Head have their own loss functions during training. This forced the audio encoder to learn to detect audio deepfakes independently, preventing the visual features from overriding the learning process.
+
+### 23.2 Dataset and Splitting Questions
+
+**Q: Why did you use FakeAVCeleb instead of DFDC or FaceForensics++?**
+A: FakeAVCeleb is uniquely structured into four explicit manipulation categories: RealVideo-RealAudio, FakeVideo-RealAudio, RealVideo-FakeAudio, and FakeVideo-FakeAudio. This 4-category structure was scientifically necessary to prove that our V2 model successfully decoupled the modalities, particularly by evaluating performance on the mixed categories.
+
+**Q: Why was an "Identity-Based Split" necessary, and how did you implement it?**
+A: If the dataset were split randomly by video, the same person (identity) would appear in both the training and test sets. The model might learn to recognize specific people rather than generalizing to deepfake artifacts, leading to inflated test metrics. We solved this by extracting the 500 unique identities, sorting them deterministically, and assigning them to splits (350 Train / 75 Val / 75 Test) using a fixed random seed.
+
+### 23.3 Architecture and Training Questions
+
+**Q: Why did you choose EfficientNet-B0 as the backbone for both visual and audio data?**
+A: EfficientNet-B0 provides an excellent balance of high feature extraction capability and low computational cost. By converting the audio into a 3-channel log-mel spectrogram, we were able to treat the audio like an image. This allowed us to leverage ImageNet pretrained weights for both modalities, significantly speeding up convergence without needing a specialized audio backbone.
+
+**Q: How did you handle the severe class imbalance (95% Fake / 5% Real) in the dataset?**
+A: We used a two-pronged approach. First, at the DataLoader level, we used a `WeightedRandomSampler` which oversampled the minority Real class and undersampled the Fake class, ensuring every training batch was approximately 50/50 balanced. Second, at the loss level, we replaced standard BCE with `BinaryFocalLoss` (gamma=2.0), which dynamically down-weights easy, highly-confident examples (mostly the overrepresented fakes) and forces the model to focus on the hard examples.
+
+**Q: Why did you apply `repeat_interleave` to the visual labels in the loss function?**
+A: Our Image Head outputs frame-level logits (predictions for every single frame). However, our ground-truth label applies to the entire video. We used `repeat_interleave` to copy the video-level label across all 16 frames in the batch, allowing the loss function to penalize the Image Head correctly for every frame's prediction without needing a separate frame-level dataset manifest.
+
+### 23.4 Results and Evaluation Questions
+
+**Q: What is the significance of the results on the `RealVideo-FakeAudio` category?**
+A: This category is the definitive proof that our V2 architecture works. For these videos, the Image Head correctly predicted Real (5.44% mean fake probability), while the Audio Head simultaneously and independently predicted Fake (98.93% mean fake probability). This proves the model can look at the same file and make two independent, correct judgments based on the separated modalities. 
+
+**Q: The Image and Fusion heads had a Precision of 100%. What does this imply?**
+A: A precision of 100% means there were exactly zero False Positives in the test set. Every single video the model classified as a deepfake was actually a deepfake. It never accidentally flagged a genuine video. This is highly desirable in real-world moderation systems, where falsely accusing someone of using a deepfake carries significant reputational harm.
+
+### 23.5 Limitations Questions
+
+**Q: How does the visual preprocessing handle cases where `RetinaFace` fails to find a face?**
+A: We implemented a strict fallback hierarchy. If no face is detected in the current frame, it attempts to "forward-fill" by reusing the bounding box from the last successful frame (expanded by a 20% margin to absorb movement). If there is no previous bounding box (e.g., failure on the first frame), it falls back to taking a centered crop of the video. This guarantees the pipeline never crashes and always outputs a valid tensor.
+
+**Q: What are the main limitations of the current system?**
+A: The model's generalizability to entirely new deepfake generation methods (like modern diffusion models) is unproven, as it was trained only on FakeAVCeleb's specific methods (faceswap, Wav2Lip). Additionally, we summarize videos using only 16 uniformly sampled frames; very brief, localized glitches might be missed. Finally, resizing all input to 224x224 destroys high-frequency pixel artifacts that could be useful for detection.
+
+---
+
+## 24. Final Project State
+
+The project has achieved its final target state. The transition from the V1 single-head architecture to the V2 Multi-Task architecture successfully resolved the critical flaw of visual dominance. By implementing independent prediction heads supervised by decoupled focal losses, the system achieved a scientifically verifiable decoupling of modalities. 
+
+The model achieves exceptional performance (ROC-AUC > 0.9996 across all heads) on a rigorously constructed, identity-isolated test set. The full pipeline — from offline preprocessing and multi-task training through formal evaluation and Streamlit-based interactive inference — is fully documented, reproducible, and ready for deployment or academic presentation.
