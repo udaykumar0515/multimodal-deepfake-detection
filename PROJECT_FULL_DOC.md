@@ -1,8 +1,8 @@
-# PROJECT_FULL_DOC.md ó Deepfake Detection Using Multimodal Learning
+# PROJECT_FULL_DOC.md ‚Äî Deepfake Detection Using Multimodal Learning
 ## Complete Technical Documentation
 
 > **Purpose of This Document**
-> This is the authoritative long-term memory for the "Deepfake Detection Using Multimodal Learning" student research/engineering project. It allows the original author ó or any reader ó to fully reconstruct the project's purpose, evolution, implementation, experiments, results, and limitations without reading every source file or the raw project log.
+> This is the authoritative long-term memory for the "Deepfake Detection Using Multimodal Learning" student research/engineering project. It allows the original author ‚Äî or any reader ‚Äî to fully reconstruct the project's purpose, evolution, implementation, experiments, results, and limitations without reading every source file or the raw project log.
 >
 > The companion `README.md` provides a concise public-facing summary. This document provides the complete technical and historical record.
 
@@ -12,10 +12,10 @@
 
 1. [Project Overview](#1-project-overview)
 2. [Problem Statement](#2-problem-statement)
-3. [Project Evolution ó Development History](#3-project-evolution--development-history)
+3. [Project Evolution ‚Äî Development History](#3-project-evolution--development-history)
 4. [Final System Architecture](#4-final-system-architecture)
 5. [Repository Structure](#5-repository-structure)
-6. [Dataset ó FakeAVCeleb](#6-dataset--fakeavceleb)
+6. [Dataset ‚Äî FakeAVCeleb](#6-dataset--fakeavceleb)
 7. [Data Splitting and Leakage Prevention](#7-data-splitting-and-leakage-prevention)
 8. [Visual Preprocessing](#8-visual-preprocessing)
 9. [Audio Preprocessing](#9-audio-preprocessing)
@@ -41,7 +41,7 @@
 
 ### 1.1 Purpose and Summary
 
-This project implements a **Multi-Task Multimodal Deepfake Detection** system capable of independently detecting manipulation in visual (image/video) and audio streams. The system produces three separate predictions for any given video input: one from a dedicated visual prediction head, one from a dedicated audio prediction head, and one from a fusion head that combines both modalities. These predictions can disagree ó a property that is the project's primary scientific contribution.
+This project implements a **Multi-Task Multimodal Deepfake Detection** system capable of independently detecting manipulation in visual (image/video) and audio streams. The system produces three separate predictions for any given video input: one from a dedicated visual prediction head, one from a dedicated audio prediction head, and one from a fusion head that combines both modalities. These predictions can disagree ‚Äî a property that is the project's primary scientific contribution.
 
 The final system is packaged as:
 - A fully trained PyTorch model checkpoint (`checkpoints/best_model.pt`)
@@ -52,7 +52,7 @@ The final system is packaged as:
 
 1. Implement a reproducible, identity-isolated dataset pipeline for the FakeAVCeleb dataset.
 2. Design and train a multi-task architecture with independent visual, audio, and fusion prediction heads.
-3. Demonstrate that the visual and audio branches learn genuinely decoupled representations ó i.e., the audio head can detect fake audio even when paired with authentic video, and vice versa.
+3. Demonstrate that the visual and audio branches learn genuinely decoupled representations ‚Äî i.e., the audio head can detect fake audio even when paired with authentic video, and vice versa.
 4. Generate interpretability evidence (Grad-CAM) for each modality branch.
 5. Build an interactive demonstration application supporting single-image, audio-only, and full video+audio inference.
 
@@ -75,7 +75,7 @@ The final system is packaged as:
 
 ### 2.1 The Deepfake Threat
 
-Deepfake technology refers to the use of generative AI ó most commonly GAN-based or diffusion-based approaches ó to synthesize convincing but fabricated audiovisual content. Prominent examples include face-swapped video, voice-cloned audio, and entirely synthetic talking-head sequences. The proliferation of such content poses genuine risks in contexts ranging from political misinformation to personal harassment and identity fraud.
+Deepfake technology refers to the use of generative AI ‚Äî most commonly GAN-based or diffusion-based approaches ‚Äî to synthesize convincing but fabricated audiovisual content. Prominent examples include face-swapped video, voice-cloned audio, and entirely synthetic talking-head sequences. The proliferation of such content poses genuine risks in contexts ranging from political misinformation to personal harassment and identity fraud.
 
 ### 2.2 Why Unimodal Detection Fails
 
@@ -83,11 +83,11 @@ Detection systems that analyze only one modality are structurally fragile agains
 
 - A **visual-only** detector will fail entirely on deepfakes where only the audio has been synthesized (e.g., a real video with cloned voice-over).
 - An **audio-only** detector will fail on purely visual deepfakes with authentic audio.
-- A detector that simply **concatenates** features before any prediction cannot produce independent verdicts ó it cannot tell you *which* modality was manipulated.
+- A detector that simply **concatenates** features before any prediction cannot produce independent verdicts ‚Äî it cannot tell you *which* modality was manipulated.
 
 This is not merely a theoretical concern. The V1 single-head architecture implemented in this project confirmed the problem empirically: the single fusion model suffered from **visual dominance**, meaning it effectively ignored audio cues and was structurally unable to differentiate between `RealVideo+FakeAudio` and `RealVideo+RealAudio` categories.
 
-### 2.3 Why Multimodal Learning ó and Why Independent Heads
+### 2.3 Why Multimodal Learning ‚Äî and Why Independent Heads
 
 The project's answer is a **multi-task architecture** with three decoupled prediction heads:
 
@@ -106,7 +106,7 @@ By training all three heads simultaneously with independent losses, the network 
 
 ---
 
-## 3. Project Evolution ó Development History
+## 3. Project Evolution ‚Äî Development History
 
 This section reconstructs the project's documented development history from `PROJECT_LOG.md`. Each sub-section corresponds to a documented phase or stage.
 
@@ -115,7 +115,7 @@ This section reconstructs the project's documented development history from `PRO
 
 ---
 
-### 3.1 Governance and Baseline (2026-09-06) [FINAL ó Infrastructure]
+### 3.1 Governance and Baseline (2026-09-06) [FINAL ‚Äî Infrastructure]
 
 **Objective:** Establish project governance and confirm the starting state of the repository before any implementation.
 
@@ -125,13 +125,13 @@ This section reconstructs the project's documented development history from `PRO
 - Created `PROJECT_LOG.md` as the permanent implementation record.
 - Reviewed and adopted the implementation blueprint as the governing policy.
 
-**Key decision:** Do not begin dataset splitting with assumed counts ó reconcile the metadata first. The audit identified a discrepancy (1,500 vs 500 vs 1,000 real sample counts in different documents). This was flagged and held for resolution in Phase 1.
+**Key decision:** Do not begin dataset splitting with assumed counts ‚Äî reconcile the metadata first. The audit identified a discrepancy (1,500 vs 500 vs 1,000 real sample counts in different documents). This was flagged and held for resolution in Phase 1.
 
 **Resulting state:** Governance confirmed. No code changed.
 
 ---
 
-### 3.2 Phase 1: Dataset Preparation ó Identity Split (2026-09-06) [FINAL]
+### 3.2 Phase 1: Dataset Preparation ‚Äî Identity Split (2026-09-06) [FINAL]
 
 **Objective:** Implement reproducible identity-based train/validation/test CSV manifests.
 
@@ -158,7 +158,7 @@ This section reconstructs the project's documented development history from `PRO
 
 ---
 
-### 3.3 Phase 1 (continued): Duplicate Record Audit (2026-09-06) [FINAL ó Informational]
+### 3.3 Phase 1 (continued): Duplicate Record Audit (2026-09-06) [FINAL ‚Äî Informational]
 
 **Objective:** Classify the 22 duplicated video paths before any preprocessing.
 
@@ -174,8 +174,8 @@ This section reconstructs the project's documented development history from `PRO
 
 **Work performed:**
 - `scripts/create_canonical_manifests.py`: one row per physical video, both method annotations stored in `method_annotations`, all original rows preserved in JSON `metadata_provenance`.
-- `scripts/validate_dataset.py`: validated all 21,544 canonical videos for existence and OpenCV frame readability ó **0 failures**.
-- Generated `data/splits/canonical/train.csv`, `val.csv`, `test.csv`.
+- `scripts/validate_dataset.py`: validated all 21,544 canonical videos for existence and OpenCV frame readability ‚Äî **0 failures**.
+- Generated `data/splits/canonical/train.csv`, `val.csv`, `test.csv`. *(Note: This path was later reorganized; the final active location for canonical manifests is `data/dataset_split/`)*
 - Git commit: `c863a8c`.
 
 **Final canonical statistics:**
@@ -189,29 +189,29 @@ This section reconstructs the project's documented development history from `PRO
 
 ---
 
-### 3.5 Phases 1.5ñ1.8: Video Preprocessing Experiments [HISTORICAL ó Informed Final Pipeline]
+### 3.5 Phases 1.5‚Äì1.8: Video Preprocessing Experiments [HISTORICAL ‚Äî Informed Final Pipeline]
 
 These phases represent iterative experimentation to validate a viable face-detection strategy before committing to full-scale preprocessing. The findings directly shaped the final offline pipeline.
 
-**Phase 1.5 ó Initial quality validation (50-video CPU sample):**
+**Phase 1.5 ‚Äî Initial quality validation (50-video CPU sample):**
 - InsightFace RetinaFace (`det_10g`) on CPU.
 - Direct detection success rate: **41.5%** | Center-crop fallback: **58.5%**
 - Conclusion: 58.5% blind center-crop rate unacceptable. Full-scale processing halted.
 
-**Phase 1.6 ó GPU environment diagnosis:**
+**Phase 1.6 ‚Äî GPU environment diagnosis:**
 - Root cause: Python environment had CPU-only `torch` and `onnxruntime` despite hardware support.
 - Fix: Reinstalled CUDA-capable packages.
 
-**Phase 1.6.1 ó GPU acceleration validation:**
-- Speed improved ~3.2◊ (~4.57 ? ~1.42 sec/video).
-- Face detection rate remained at **41.5%** ó confirming failures are data/model characteristics, not compute precision.
+**Phase 1.6.1 ‚Äî GPU acceleration validation:**
+- Speed improved ~3.2√ó (~4.57 ? ~1.42 sec/video).
+- Face detection rate remained at **41.5%** ‚Äî confirming failures are data/model characteristics, not compute precision.
 
-**Phase 1.7 ó Bounding-box forward-filling experiment:**
+**Phase 1.7 ‚Äî Bounding-box forward-filling experiment:**
 - Stateful forward-fill: when a frame misses detection, reuse the most recent successful bounding box.
 - Center-crop fallback reduced: **58.5% ? 33.1%**. Forward-fill: 25.4%.
 - Fully-covered videos (zero fallbacks) rose to 20/50.
 
-**Phase 1.8 ó Forward-fill quality check:**
+**Phase 1.8 ‚Äî Forward-fill quality check:**
 - Mean fill streak: ~3 frames. Max streak: 12 frames. Mean geometric drift: **1.63%** (negligible given 20% margin).
 - Remaining 33.1% fallbacks occur at video starts where no prior bounding box exists.
 - Backward-filling considered and explicitly **excluded** from the frozen methodology.
@@ -220,7 +220,7 @@ These phases represent iterative experimentation to validate a viable face-detec
 
 ---
 
-### 3.6 Phase 1.10: Repository Cleanup #1 [HISTORICAL ó Organizational]
+### 3.6 Phase 1.10: Repository Cleanup #1 [HISTORICAL ‚Äî Organizational]
 
 Validation scripts, GPU diagnostics, and experimental reports consolidated into a `testing/` hierarchy (later renamed `archive/` in Phase 9.5). Active `scripts/` and `data/` directories retained only production-ready files.
 
@@ -230,7 +230,7 @@ Validation scripts, GPU diagnostics, and experimental reports consolidated into 
 
 **Objective:** Run the finalized face-detection pipeline across all 21,544 videos.
 
-**Configuration:** `UniformTemporalSampler` (16 frames/video), RetinaFace (`det_10g`), 20% margin, 224◊224. Fallback hierarchy: Direct Detection ? Forward-Fill ? Center-Crop.
+**Configuration:** `UniformTemporalSampler` (16 frames/video), RetinaFace (`det_10g`), 20% margin, 224√ó224. Fallback hierarchy: Direct Detection ? Forward-Fill ? Center-Crop.
 
 **Results:**
 - Videos processed: **21,544 / 21,544 (0 failures)**
@@ -247,7 +247,7 @@ Validation scripts, GPU diagnostics, and experimental reports consolidated into 
 
 **Configuration:**
 - Extraction: `imageio-ffmpeg` FFmpeg binary ? 16 kHz, mono, 16-bit PCM WAV.
-- Spectrogram: 128-mel, `n_fft=1024`, `hop_length=512`, `f_min=20 Hz`, `f_max=8000 Hz`, dB scale, bilinear resize to 224◊224, 3-channel repeat ? `float32 [3, 224, 224]`.
+- Spectrogram: 128-mel, `n_fft=1024`, `hop_length=512`, `f_min=20 Hz`, `f_max=8000 Hz`, dB scale, bilinear resize to 224√ó224, 3-channel repeat ? `float32 [3, 224, 224]`.
 
 **Results:** 21,544 / 21,544 success (0 failures). Output: ~15.51 GB. Runtime: ~46m 14s.
 
@@ -255,19 +255,19 @@ Validation scripts, GPU diagnostics, and experimental reports consolidated into 
 
 ---
 
-### 3.9 Phase 4: V1 PyTorch Dataset and DataLoader [HISTORICAL ó Core Patterns Retained]
+### 3.9 Phase 4: V1 PyTorch Dataset and DataLoader [HISTORICAL ‚Äî Core Patterns Retained]
 
 The V1 dataset implementation established design patterns carried into the final V2 system:
 
 - **Lazy `.npy` loading** in `__getitem__` (not pre-loaded into RAM).
-- **Temporally consistent augmentation** via `albumentations` `additional_targets` ó all 16 frames in a sample receive identical spatial transforms.
+- **Temporally consistent augmentation** via `albumentations` `additional_targets` ‚Äî all 16 frames in a sample receive identical spatial transforms.
 - **`WeightedRandomSampler`** for training: ~4.6% Real samples in training ? inverse-frequency weights ? approximately 50/50 balanced batches.
 - **Natural distribution** for validation and test (no resampling).
 - **Labels:** `Real ? 0.0`, `Fake ? 1.0` (float32).
 
 ---
 
-### 3.10 Phase 5: V1 Architecture ó Single-Head Model [HISTORICAL]
+### 3.10 Phase 5: V1 Architecture ‚Äî Single-Head Model [HISTORICAL]
 
 **Architecture (V1):**
 - `VideoEncoder`: EfficientNet-B0, mean-pools 16 frames ? `(B, 1280)`
@@ -279,10 +279,10 @@ The V1 dataset implementation established design patterns carried into the final
 
 ---
 
-### 3.11 Phases 6ñ6.5: V1 Training Infrastructure and Hardware Timing [HISTORICAL]
+### 3.11 Phases 6‚Äì6.5: V1 Training Infrastructure and Hardware Timing [HISTORICAL]
 
 **Training infrastructure (V1):**
-- `BinaryFocalLoss` (`gamma=2.0`) ó **retained unchanged in final V2 system**
+- `BinaryFocalLoss` (`gamma=2.0`) ‚Äî **retained unchanged in final V2 system**
 - Optimizer: AdamW (`lr=1e-4`, `weight_decay=1e-4`)
 - Scheduler: CosineAnnealingLR
 - AMP + gradient clipping (`max_norm=1.0`)
@@ -296,23 +296,23 @@ The V1 dataset implementation established design patterns carried into the final
 
 ---
 
-### 3.12 Phases 7ñ8: V1 Training and Evaluation Preparation [HISTORICAL]
+### 3.12 Phases 7‚Äì8: V1 Training and Evaluation Preparation [HISTORICAL]
 
 V1 training was executed and `scripts/evaluate_test.py` was created. Specific V1 test metrics are not documented in the available materials, as Phase 10.5 revealed V1's fundamental architectural limitation, making those results scientifically incomplete. All V1 artefacts preserved in `archive/v1_single_head/`.
 
 ---
 
-### 3.13 Phases 9Añ9B: V1 Grad-CAM [HISTORICAL]
+### 3.13 Phases 9A‚Äì9B: V1 Grad-CAM [HISTORICAL]
 
 **Phase 9A (sanity check):** Verified that hooks could be registered on `backbone.features[-1]` of both EfficientNet encoders. Activation shapes: `[16, 1280, 7, 7]` (video), `[1, 1280, 7, 7]` (audio).
 
 **Phase 9B (implementation):** `GradCAM` class implemented: global average pooling over gradients, weighted activation sum, ReLU, `[0,1]` normalization, spatial upsampling, `COLORMAP_JET` overlay. Visualizations for 5 test samples (correct fake, 3 false negatives, correct real). Outputs archived.
 
-**Constraint established here and maintained throughout:** Grad-CAM provides attribution ó it does not constitutively prove the presence of a specific physical deepfake artefact.
+**Constraint established here and maintained throughout:** Grad-CAM provides attribution ‚Äî it does not constitutively prove the presence of a specific physical deepfake artefact.
 
 ---
 
-### 3.14 Phase 9.5: Repository Cleanup #2 [HISTORICAL ó Organizational]
+### 3.14 Phase 9.5: Repository Cleanup #2 [HISTORICAL ‚Äî Organizational]
 
 `testing/` renamed ? `archive/`. One-time training analysis and Grad-CAM scripts moved to `archive/`. V1 Grad-CAM outputs moved from `results/gradcam/` to `archive/gradcam/outputs/`. `scripts/` reduced to the four core active entry points.
 
@@ -324,32 +324,32 @@ Initial `app.py` with Detection and Results & Evaluation pages. Loaded V1 `best_
 
 ---
 
-### 3.16 Phase 10.5: The Critical Architectural Decision ó V1 ? V2 [HISTORICAL ? FINAL]
+### 3.16 Phase 10.5: The Critical Architectural Decision ‚Äî V1 ? V2 [HISTORICAL ? FINAL]
 
 **Conclusion:** Extending V1 to produce independent per-modality predictions was scientifically and technically impossible. V1's single fusion logit was inherently incapable of isolating visual from audio evidence. Visual dominance was confirmed: the `RealVideo+FakeAudio` category was structurally invisible to V1.
 
-**Decision:** Archive all V1 system files and rebuild from scratch as a multi-head multi-task architecture. Preprocessing infrastructure (`data/`, `preprocessing/`) preserved intact ó no re-preprocessing required.
+**Decision:** Archive all V1 system files and rebuild from scratch as a multi-head multi-task architecture. Preprocessing infrastructure (`data/`, `preprocessing/`) preserved intact ‚Äî no re-preprocessing required.
 
 This transition permanently defines the V1 (historical) / V2 (final/active) boundary.
 
 ---
 
-### 3.17 Phases 11ñ14: V2 Multi-Head Architecture ó Design to Training-Ready [FINAL]
+### 3.17 Phases 11‚Äì14: V2 Multi-Head Architecture ‚Äî Design to Training-Ready [FINAL]
 
-**Phase 11 ó Architecture:**
-- `VisualEncoder`: EfficientNet-B0, returns mean-pooled `(B, 1280)` or unpooled `(B◊T, 1280)` frame features.
+**Phase 11 ‚Äî Architecture:**
+- `VisualEncoder`: EfficientNet-B0, returns mean-pooled `(B, 1280)` or unpooled `(B√óT, 1280)` frame features.
 - `AudioEncoder`: EfficientNet-B0, spectrogram input ? `(B, 1280)`.
 - `MultiHeadDeepfakeModel`: assembles both encoders with three independent heads.
 
-**Phase 12 ó Dataset:**
+**Phase 12 ‚Äî Dataset:**
 - `MultimodalDeepfakeDataset` returns `(video, audio, video_label, audio_label, overall_label)`.
-- Image-head training: `video_label` dynamically expanded via `repeat_interleave(16, dim=0)` to align with unpooled frame predictions ó no separate image dataset required.
+- Image-head training: `video_label` dynamically expanded via `repeat_interleave(16, dim=0)` to align with unpooled frame predictions ‚Äî no separate image dataset required.
 
-**Phase 13 ó Loss and trainer:**
+**Phase 13 ‚Äî Loss and trainer:**
 - `MultiTaskFocalLoss`: equal unweighted sum of per-head focal losses.
 - `Trainer`: tracks all three head metrics per epoch; uses `ReduceLROnPlateau` (changed from V1's CosineAnnealingLR).
 
-**Phase 14 ó Training verification:**
+**Phase 14 ‚Äî Training verification:**
 - `scripts/train.py`: unified entry point. Configuration: `batch_size=4`, `lr=1e-4`, `wd=1e-4`, `gamma=2.0`, `grad_clip=1.0`, AMP.
 
 ---
@@ -358,14 +358,14 @@ This transition permanently defines the V1 (historical) / V2 (final/active) boun
 
 **Training:** 10 epochs on RTX 4050. Best checkpoint: **Epoch 6** (`total_val_loss=0.0189`, Fusion Acc 99.81%).
 
-**Key finding ó four-category modality diagnostic:**
+**Key finding ‚Äî four-category modality diagnostic:**
 
 | Category | N | Image Acc | Audio Acc | Fusion Acc | Image Fake Prob | Audio Fake Prob |
 |---|---|---|---|---|---|---|
-| RealVideo + RealAudio | 75 | 100% | 100% | 100% | ó | 1.06% |
-| FakeVideo + RealAudio | 1,471 | 99.80% | 99.93% | 99.80% | ó | 0.64% |
+| RealVideo + RealAudio | 75 | 100% | 100% | 100% | ‚Äî | 1.06% |
+| FakeVideo + RealAudio | 1,471 | 99.80% | 99.93% | 99.80% | ‚Äî | 0.64% |
 | RealVideo + FakeAudio | 75 | 100% | 100% | 100% | 5.44% | 98.92% |
-| FakeVideo + FakeAudio | 1,649 | 100% | 99.94% | 100% | ó | ó |
+| FakeVideo + FakeAudio | 1,649 | 100% | 99.94% | 100% | ‚Äî | ‚Äî |
 
 On `RealVideo + FakeAudio`: Image Head correctly predicted REAL (5.44% fake prob) while Audio Head independently predicted FAKE (98.92% fake prob). This empirically demonstrates successful modality decoupling.
 
@@ -377,9 +377,9 @@ On `RealVideo + FakeAudio`: Image Head correctly predicted REAL (5.44% fake prob
 
 ---
 
-### 3.20 Phases 17ñ22: Application, Cleanup, and Documentation [FINAL]
+### 3.20 Phases 17‚Äì22: Application, Cleanup, and Documentation [FINAL]
 
-- **Phase 17:** Final `app.py` ó Video/Image/Audio inference, inline Grad-CAM, Results page.
+- **Phase 17:** Final `app.py` ‚Äî Video/Image/Audio inference, inline Grad-CAM, Results page.
 - **Phase 18:** V1 assets archived. `testing_data/` structure created.
 - **Phase 19:** `testing_data/` populated with 4 samples per category from the held-out test set.
 - **Phase 20:** All `v2_` prefixes removed from active files. `results/` reorganized into research subdirectories. PR curves and error analysis CSVs generated.
@@ -401,50 +401,50 @@ The final model is `MultiHeadDeepfakeModel`, a multi-task neural network with tw
 INPUT MODALITIES
 ----------------------------------------------------------------
 Video: (B, T=16, 3, 224, 224)         Audio: (B, 3, 224, 224)
-        ¶                                       ¶
+        ¬¶                                       ¬¶
         ?                                       ?
 +------------------+                 +----------------------+
-¶  VisualEncoder   ¶                 ¶    AudioEncoder      ¶
-¶  EfficientNet-B0 ¶                 ¶    EfficientNet-B0   ¶
-¶                  ¶                 ¶                      ¶
-¶  Fold T into B   ¶                 ¶  features + avgpool  ¶
-¶  (B◊T, 3,224,224)¶                 ¶       ?              ¶
-¶  features+avgpool¶                 ¶  (B, 1280)           ¶
-¶  (B◊T, 1280)     ¶                 +----------------------+
-¶  mean-pool or    ¶                          ¶
-¶  return unpooled ¶                          ¶
-¶  (B, 1280)       ¶                          ¶
-+------------------+                          ¶
-       ¶ seq_rep (B, 1280)                    ¶ audio_feat (B, 1280)
-       ¶ frame_feats (B◊T, 1280) [training]   ¶
-       ¶                                      ¶
-       +--------------------------------------¶
-       ¶           concat: (B, 2560)          ¶
-       ¶                                      ¶
-       ?                                      ¶
-+-----------------------------+              ¶
-¶       fusion_head           ¶              ¶
-¶  Linear(2560?512)           ¶              ¶
-¶  ReLU ? Dropout(0.3)        ¶              ¶
-¶  Linear(512?1)              ¶              ¶
-¶  ? fusion logit             ¶              ¶
-+-----------------------------+              ¶
+¬¶  VisualEncoder   ¬¶                 ¬¶    AudioEncoder      ¬¶
+¬¶  EfficientNet-B0 ¬¶                 ¬¶    EfficientNet-B0   ¬¶
+¬¶                  ¬¶                 ¬¶                      ¬¶
+¬¶  Fold T into B   ¬¶                 ¬¶  features + avgpool  ¬¶
+¬¶  (B√óT, 3,224,224)¬¶                 ¬¶       ?              ¬¶
+¬¶  features+avgpool¬¶                 ¬¶  (B, 1280)           ¬¶
+¬¶  (B√óT, 1280)     ¬¶                 +----------------------+
+¬¶  mean-pool or    ¬¶                          ¬¶
+¬¶  return unpooled ¬¶                          ¬¶
+¬¶  (B, 1280)       ¬¶                          ¬¶
++------------------+                          ¬¶
+       ¬¶ seq_rep (B, 1280)                    ¬¶ audio_feat (B, 1280)
+       ¬¶ frame_feats (B√óT, 1280) [training]   ¬¶
+       ¬¶                                      ¬¶
+       +--------------------------------------¬¶
+       ¬¶           concat: (B, 2560)          ¬¶
+       ¬¶                                      ¬¶
+       ?                                      ¬¶
++-----------------------------+              ¬¶
+¬¶       fusion_head           ¬¶              ¬¶
+¬¶  Linear(2560?512)           ¬¶              ¬¶
+¬¶  ReLU ? Dropout(0.3)        ¬¶              ¬¶
+¬¶  Linear(512?1)              ¬¶              ¬¶
+¬¶  ? fusion logit             ¬¶              ¬¶
++-----------------------------+              ¬¶
                                              ?
                               +--------------------------+
-                              ¶       audio_head         ¶
-                              ¶   Dropout(0.3)           ¶
-                              ¶   Linear(1280?1)         ¶
-                              ¶   ? audio logit          ¶
+                              ¬¶       audio_head         ¬¶
+                              ¬¶   Dropout(0.3)           ¬¶
+                              ¬¶   Linear(1280?1)         ¬¶
+                              ¬¶   ? audio logit          ¬¶
                               +--------------------------+
 
-       frame_feats (B◊T, 1280) [training only]
-       ¶
+       frame_feats (B√óT, 1280) [training only]
+       ¬¶
        ?
 +--------------------------+
-¶       image_head         ¶
-¶   Dropout(0.3)           ¶
-¶   Linear(1280?1)         ¶
-¶   ? (B◊T, 1) frame logits¶
+¬¶       image_head         ¬¶
+¬¶   Dropout(0.3)           ¬¶
+¬¶   Linear(1280?1)         ¬¶
+¬¶   ? (B√óT, 1) frame logits¬¶
 +--------------------------+
 ```
 
@@ -462,15 +462,15 @@ All heads output **raw logits** (no sigmoid inside the model). Sigmoid is applie
 
 **Forward dispatch:** Automatically detects input dimensionality:
 - **4D input** `(B, 3, 224, 224)` ? `forward_image` ? `(B, 1280)`
-- **5D input** `(B, T, 3, 224, 224)` ? `forward_video` ? `(B, 1280)` [or `(B, 1280) + (B◊T, 1280)` if `return_unpooled=True`]
+- **5D input** `(B, T, 3, 224, 224)` ? `forward_video` ? `(B, 1280)` [or `(B, 1280) + (B√óT, 1280)` if `return_unpooled=True`]
 
 **Video processing detail:**
-1. Reshape: `(B, T, 3, 224, 224)` ? `(B◊T, 3, 224, 224)` (fold time into batch dimension)
-2. Forward through `features + avgpool + flatten`: ? `(B◊T, 1280)` per-frame features
-3. Unfold: `(B◊T, 1280)` ? `(B, T, 1280)` ? mean over T ? `(B, 1280)` sequence representation
-4. If `return_unpooled=True`: return both `(B, 1280)` and raw `(B◊T, 1280)`
+1. Reshape: `(B, T, 3, 224, 224)` ? `(B√óT, 3, 224, 224)` (fold time into batch dimension)
+2. Forward through `features + avgpool + flatten`: ? `(B√óT, 1280)` per-frame features
+3. Unfold: `(B√óT, 1280)` ? `(B, T, 1280)` ? mean over T ? `(B, 1280)` sequence representation
+4. If `return_unpooled=True`: return both `(B, 1280)` and raw `(B√óT, 1280)`
 
-**Why `return_unpooled` matters:** During multi-task training, the Image Head receives the `(B◊T, 1280)` unpooled frame features, so it learns to classify each frame independently rather than only the mean-pooled video summary.
+**Why `return_unpooled` matters:** During multi-task training, the Image Head receives the `(B√óT, 1280)` unpooled frame features, so it learns to classify each frame independently rather than only the mean-pooled video summary.
 
 ---
 
@@ -478,7 +478,7 @@ All heads output **raw logits** (no sigmoid inside the model). Sigmoid is applie
 
 **File:** `models/audio_encoder.py`
 
-**Purpose:** Encodes a 3-channel 224◊224 log-mel spectrogram into a 1280-dimensional feature vector.
+**Purpose:** Encodes a 3-channel 224√ó224 log-mel spectrogram into a 1280-dimensional feature vector.
 
 **Constructor:** `AudioEncoder(pretrained=True)` loads `EfficientNet_B0_Weights.IMAGENET1K_V1`. Retains `backbone.features` and `backbone.avgpool`. Exposes `self.grad_cam_layer = self.features[-1]` for Grad-CAM.
 
@@ -488,7 +488,7 @@ All heads output **raw logits** (no sigmoid inside the model). Sigmoid is applie
 
 ---
 
-### 4.4 MultiHeadDeepfakeModel ó Forward Pass Logic
+### 4.4 MultiHeadDeepfakeModel ‚Äî Forward Pass Logic
 
 **File:** `models/multihead_model.py`
 
@@ -513,7 +513,7 @@ The `forward` method enforces strict input routing via explicit combinatorial ch
 
 | Head | Input Shape | Architecture | Output Shape |
 |---|---|---|---|
-| `image_head` | `(B◊T, 1280)` | `Dropout(0.3) ? Linear(1280, 1)` | `(B◊T, 1)` |
+| `image_head` | `(B√óT, 1280)` | `Dropout(0.3) ? Linear(1280, 1)` | `(B√óT, 1)` |
 | `audio_head` | `(B, 1280)` | `Dropout(0.3) ? Linear(1280, 1)` | `(B, 1)` |
 | `fusion_head` | `(B, 2560)` | `Linear(2560, 512) ? ReLU ? Dropout(0.3) ? Linear(512, 1)` | `(B, 1)` |
 
@@ -533,7 +533,7 @@ From the project log Phase 5 sanity test (architecture unchanged in V2):
 
 ### 4.7 Grad-CAM Target Layer
 
-Both encoders expose `self.grad_cam_layer` pointing to `self.features[-1]`, which is the final `MBConv` block of EfficientNet-B0. This produces intermediate activation maps of shape `[B, 1280, 7, 7]` (for 224◊224 inputs), which are the spatial feature maps used in the Grad-CAM computation.
+Both encoders expose `self.grad_cam_layer` pointing to `self.features[-1]`, which is the final `MBConv` block of EfficientNet-B0. This produces intermediate activation maps of shape `[B, 1280, 7, 7]` (for 224√ó224 inputs), which are the spatial feature maps used in the Grad-CAM computation.
 
 ---
 
@@ -543,78 +543,78 @@ Both encoders expose `self.grad_cam_layer` pointing to `self.features[-1]`, whic
 
 ```
 Deepfake_Detection/                     ? Repository root
-¶
+¬¶
 +-- app.py                              ? Streamlit application entry point
-¶
+¬¶
 +-- models/                             ? Final model architecture
-¶   +-- visual_encoder.py               ? VisualEncoder (EfficientNet-B0)
-¶   +-- audio_encoder.py                ? AudioEncoder (EfficientNet-B0)
-¶   +-- multihead_model.py              ? MultiHeadDeepfakeModel
-¶   +-- __init__.py
-¶
+¬¶   +-- visual_encoder.py               ? VisualEncoder (EfficientNet-B0)
+¬¶   +-- audio_encoder.py                ? AudioEncoder (EfficientNet-B0)
+¬¶   +-- multihead_model.py              ? MultiHeadDeepfakeModel
+¬¶   +-- __init__.py
+¬¶
 +-- dataset/                            ? PyTorch dataset and dataloader
-¶   +-- multimodal_dataset.py           ? MultimodalDeepfakeDataset
-¶   +-- dataloader_factory.py           ? build_dataloaders() factory
-¶   +-- __init__.py
-¶
+¬¶   +-- multimodal_dataset.py           ? MultimodalDeepfakeDataset
+¬¶   +-- dataloader_factory.py           ? create_dataloaders() factory
+¬¶   +-- __init__.py
+¬¶
 +-- preprocessing/                      ? Preprocessing classes (used offline + in app)
-¶   +-- video_preprocessing.py          ? UniformTemporalSampler, RetinaFaceCropper,
-¶   ¶                                      VideoPreprocessor, VisualTransform
-¶   +-- audio_preprocessing.py          ? AudioExtractor, SpectrogramGenerator
-¶   +-- __init__.py
-¶
+¬¶   +-- video_preprocessing.py          ? UniformTemporalSampler, RetinaFaceCropper,
+¬¶   ¬¶                                      VideoPreprocessor, VisualTransform
+¬¶   +-- audio_preprocessing.py          ? AudioExtractor, SpectrogramGenerator
+¬¶   +-- __init__.py
+¬¶
 +-- training/                           ? Training loop and losses
-¶   +-- trainer.py                      ? Trainer class (multi-task)
-¶   +-- losses.py                       ? BinaryFocalLoss, MultiTaskFocalLoss
-¶   +-- __init__.py
-¶
+¬¶   +-- trainer.py                      ? Trainer class (multi-task)
+¬¶   +-- losses.py                       ? BinaryFocalLoss, MultiTaskFocalLoss
+¬¶   +-- __init__.py
+¬¶
 +-- scripts/                            ? Active executable entry points
-¶   +-- train.py                        ? Full training run
-¶   +-- evaluate_test.py                ? Held-out test evaluation
-¶   +-- preprocess_dataset_offline.py   ? Offline video frame preprocessing
-¶   +-- preprocess_audio_offline.py     ? Offline audio spectrogram preprocessing
-¶   +-- generate_gradcam.py             ? Grad-CAM visualization generation
-¶
+¬¶   +-- train.py                        ? Full training run
+¬¶   +-- evaluate_test.py                ? Held-out test evaluation
+¬¶   +-- preprocess_dataset_offline.py   ? Offline video frame preprocessing
+¬¶   +-- preprocess_audio_offline.py     ? Offline audio spectrogram preprocessing
+¬¶   +-- generate_gradcam.py             ? Grad-CAM visualization generation
+¬¶
 +-- checkpoints/                        ? Model checkpoints (git-ignored)
-¶   +-- best_model.pt                   ? Best validation loss checkpoint (Epoch 6)
-¶   +-- latest_model.pt                 ? Last completed epoch checkpoint
-¶
+¬¶   +-- best_model.pt                   ? Best validation loss checkpoint (Epoch 6)
+¬¶   +-- latest_model.pt                 ? Last completed epoch checkpoint
+¬¶
 +-- results/                            ? Research evidence store
-¶   +-- metrics/
-¶   ¶   +-- test_metrics.json           ? Final per-head test metrics
-¶   +-- predictions/
-¶   ¶   +-- test_predictions.csv        ? Per-sample predictions + probabilities
-¶   +-- confusion_matrices/             ? image, audio, fusion confusion matrix PNGs
-¶   +-- roc_curves/                     ? image, audio, fusion ROC curve PNGs
-¶   +-- precision_recall_curves/        ? Per-head PR curve PNGs
-¶   +-- performance_curves/
-¶   ¶   +-- training_history.json       ? Per-epoch loss and metric history
-¶   +-- modality_analysis/
-¶   ¶   +-- modality_category_results.csv
-¶   +-- error_analysis/                 ? False positive / false negative CSVs
-¶   +-- gradcam/                        ? Grad-CAM overlays by category
-¶   +-- dataset_summary.json
-¶   +-- README.md                       ? Research evidence index
-¶
+¬¶   +-- metrics/
+¬¶   ¬¶   +-- test_metrics.json           ? Final per-head test metrics
+¬¶   +-- predictions/
+¬¶   ¬¶   +-- test_predictions.csv        ? Per-sample predictions + probabilities
+¬¶   +-- confusion_matrices/             ? image, audio, fusion confusion matrix PNGs
+¬¶   +-- roc_curves/                     ? image, audio, fusion ROC curve PNGs
+¬¶   +-- precision_recall_curves/        ? Per-head PR curve PNGs
+¬¶   +-- performance_curves/
+¬¶   ¬¶   +-- training_history.json       ? Per-epoch loss and metric history
+¬¶   +-- modality_analysis/
+¬¶   ¬¶   +-- modality_category_results.csv
+¬¶   +-- error_analysis/                 ? False positive / false negative CSVs
+¬¶   +-- gradcam/                        ? Grad-CAM overlays by category
+¬¶   +-- dataset_summary.json
+¬¶   +-- README.md                       ? Research evidence index
+¬¶
 +-- data/                               ? Processed dataset (git-ignored)
-¶   +-- dataset_split/
-¶   ¶   +-- train.csv                   ? Canonical training manifest
-¶   ¶   +-- val.csv                     ? Canonical validation manifest
-¶   ¶   +-- test.csv                    ? Canonical test manifest
-¶   +-- processed_frames/               ? Offline .npy video frame arrays (~48 GB)
-¶   +-- processed_audio/                ? Offline .npy spectrogram arrays (~15 GB)
-¶   +-- README.md
-¶
+¬¶   +-- dataset_split/
+¬¶   ¬¶   +-- train.csv                   ? Canonical training manifest
+¬¶   ¬¶   +-- val.csv                     ? Canonical validation manifest
+¬¶   ¬¶   +-- test.csv                    ? Canonical test manifest
+¬¶   +-- processed_frames/               ? Offline .npy video frame arrays (~48 GB)
+¬¶   +-- processed_audio/                ? Offline .npy spectrogram arrays (~15 GB)
+¬¶   +-- README.md
+¬¶
 +-- testing_data/                       ? Demo samples for Streamlit testing
-¶   +-- images/real/ and images/fake/
-¶   +-- audio/real/ and audio/fake/
-¶   +-- videos/<four categories>/
-¶   +-- TESTING_DATA_MANIFEST.csv
-¶   +-- README.md
-¶
+¬¶   +-- images/real/ and images/fake/
+¬¶   +-- audio/real/ and audio/fake/
+¬¶   +-- videos/<four categories>/
+¬¶   +-- TESTING_DATA_MANIFEST.csv
+¬¶   +-- README.md
+¬¶
 +-- docs/                               ? Project documentation files
 +-- archive/                            ? Historical/superseded artefacts (git-ignored)
-¶
+¬¶
 +-- PROJECT_LOG.md                      ? Permanent development history
 +-- PROJECT_FULL_DOC.md                 ? This document
 +-- README.md                           ? Public-facing repository summary
@@ -633,17 +633,17 @@ Deepfake_Detection/                     ? Repository root
 ### 5.3 git-ignored Paths
 
 The following directories and their contents are not committed to the remote repository:
-- `.venv_gpu/` ó Python virtual environment
-- `data/processed_frames/` ó ~48 GB offline video frames
-- `data/processed_audio/` ó ~15 GB offline spectrograms
-- `checkpoints/` ó trained model weights
-- `archive/` ó historical artefacts
-- `.vscode/` ó editor configuration
-- `Dataset_FakeAVCeleb/` ó raw dataset
+- `.venv_gpu/` ‚Äî Python virtual environment
+- `data/processed_frames/` ‚Äî ~48 GB offline video frames
+- `data/processed_audio/` ‚Äî ~15 GB offline spectrograms
+- `checkpoints/` ‚Äî trained model weights
+- `archive/` ‚Äî historical artefacts
+- `.vscode/` ‚Äî editor configuration
+- `Dataset_FakeAVCeleb/` ‚Äî raw dataset
 
 ---
 
-## 6. Dataset ó FakeAVCeleb
+## 6. Dataset ‚Äî FakeAVCeleb
 
 ### 6.1 Overview and Source
 
@@ -667,10 +667,10 @@ This four-category structure is what makes FakeAVCeleb uniquely suited to the pr
 **Raw metadata file:** `Dataset_FakeAVCeleb/meta_data.csv`
 
 - **Total metadata rows:** 21,566
-- **Unique physical video paths:** 21,544 (22 paths appear in two rows each ó see Section 6.4)
+- **Unique physical video paths:** 21,544 (22 paths appear in two rows each ‚Äî see Section 6.4)
 - **Unique source identities:** 500 (the `source` field)
 - **`type` field:** Encodes the four-category label (`RealVideo-RealAudio`, `FakeVideo-RealAudio`, `RealVideo-FakeAudio`, `FakeVideo-FakeAudio`)
-- **`method` field:** Records the manipulation technique. Known values include `wav2lip` and `faceswap-wav2lip`.
+- **`method` field:** Records the manipulation technique. Known values include `wav2lip`, `faceswap`, and `faceswap-wav2lip`.
 
 **Label derivation:**
 
@@ -678,8 +678,8 @@ This four-category structure is what makes FakeAVCeleb uniquely suited to the pr
 |---|---|---|---|
 | `RealVideo-*` | Real | depends on suffix | Real |
 | `FakeVideo-*` | Fake | depends on suffix | Fake |
-| `*-RealAudio` | depends on prefix | Real | ó |
-| `*-FakeAudio` | depends on prefix | Fake | ó |
+| `*-RealAudio` | depends on prefix | Real | ‚Äî |
+| `*-FakeAudio` | depends on prefix | Fake | ‚Äî |
 
 The primary `label` (used for the Fusion Head and WeightedRandomSampler) mirrors `video_label`. The multi-task training additionally uses `audio_label` independently to supervise the Audio Head.
 
@@ -719,12 +719,12 @@ The raw metadata contains 44 rows referencing 22 physical video paths twice each
 
 | File | Purpose | Row count |
 |---|---|---|
-| `data/splits/train.csv` | Original split ó provenance layer | 15,099 |
-| `data/splits/val.csv` | Original split ó provenance layer | 3,194 |
-| `data/splits/test.csv` | Original split ó provenance layer | 3,273 |
-| `data/dataset_split/train.csv` | **Canonical ó used for all preprocessing and training** | 15,083 |
-| `data/dataset_split/val.csv` | **Canonical ó used for all preprocessing and training** | 3,191 |
-| `data/dataset_split/test.csv` | **Canonical ó used for all preprocessing and training** | 3,270 |
+| `data/splits/train.csv` | Original split ‚Äî provenance layer | 15,099 |
+| `data/splits/val.csv` | Original split ‚Äî provenance layer | 3,194 |
+| `data/splits/test.csv` | Original split ‚Äî provenance layer | 3,273 |
+| `data/dataset_split/train.csv` | **Canonical ‚Äî used for all preprocessing and training** | 15,083 |
+| `data/dataset_split/val.csv` | **Canonical ‚Äî used for all preprocessing and training** | 3,191 |
+| `data/dataset_split/test.csv` | **Canonical ‚Äî used for all preprocessing and training** | 3,270 |
 
 ### 6.6 Reproducibility Guarantees
 
@@ -744,7 +744,7 @@ These hashes can be used to verify dataset pipeline integrity if the scripts are
 
 ### 7.1 The Identity Leakage Problem
 
-In deepfake detection, a naive random per-video split would almost certainly place videos of the same subject (identity) in both the training and test sets. Because deepfake generation artifacts can be identity-specific ó for example, the same face may be used as the manipulation source across many videos ó a model could learn to recognize a particular identity's visual characteristics rather than generalising to detect synthetic manipulation. This would produce inflated test metrics that do not reflect true generalization.
+In deepfake detection, a naive random per-video split would almost certainly place videos of the same subject (identity) in both the training and test sets. Because deepfake generation artifacts can be identity-specific ‚Äî for example, the same face may be used as the manipulation source across many videos ‚Äî a model could learn to recognize a particular identity's visual characteristics rather than generalising to detect synthetic manipulation. This would produce inflated test metrics that do not reflect true generalization.
 
 The project prevents this by splitting the dataset at the **identity level**: all videos containing a given source identity are assigned exclusively to one split. The test set contains 75 identities that the model has never encountered during training or validation.
 
@@ -769,14 +769,14 @@ The project prevents this by splitting the dataset at the **identity level**: al
 
 ### 7.3 Canonical Manifest Layer
 
-The initial split CSVs (`data/splits/`) preserve all 21,566 rows including the 44 duplicate rows (22 physical videos ◊ 2 method annotations). These are the **provenance layer** ó they record all original metadata.
+The initial split CSVs (`data/splits/`) preserve all 21,566 rows including the 44 duplicate rows (22 physical videos √ó 2 method annotations). These are the **provenance layer** ‚Äî they record all original metadata.
 
 The canonical manifests (`data/dataset_split/`) contain **one row per physical video** (21,544 rows total). These are the files used by all preprocessing scripts and training/evaluation dataloaders. The deduplication policy:
 
 - For the 22 duplicated paths: one canonical row is kept; both method values are stored in `method_annotations`; both original rows are preserved in a JSON `metadata_provenance` column.
 - No label conflicts existed in any duplicate group, so deduplication does not affect ground-truth labels.
 
-All downstream operations ó frame extraction, spectrogram generation, training, evaluation ó consume the canonical manifests exclusively.
+All downstream operations ‚Äî frame extraction, spectrogram generation, training, evaluation ‚Äî consume the canonical manifests exclusively.
 
 ### 7.4 Split Statistics
 
@@ -786,7 +786,7 @@ All downstream operations ó frame extraction, spectrogram generation, training, 
 | Validation | 75 | 3,191 | 150 (4.70%) | 3,041 (95.30%) | ~1:20.3 |
 | Test | 75 | 3,270 | 150 (4.59%) | 3,120 (95.41%) | ~1:20.8 |
 
-The class imbalance ratio (~1:20 Real:Fake) is consistent across all three splits, reflecting the dataset's natural composition. This imbalance is significant and would cause a naÔve model to converge to predicting Fake for all inputs with artificially high accuracy. It is addressed in the training pipeline ó see Section 10.2.
+The class imbalance ratio (~1:20 Real:Fake) is consistent across all three splits, reflecting the dataset's natural composition. This imbalance is significant and would cause a na√Øve model to converge to predicting Fake for all inputs with artificially high accuracy. It is addressed in the training pipeline ‚Äî see Section 10.2.
 
 ### 7.5 Test Set Integrity
 
@@ -800,11 +800,11 @@ The test split of 3,270 videos is the **held-out evaluation set**. It was not us
 
 Visual preprocessing involves two distinct phases:
 1. **Offline preprocessing** (`scripts/preprocess_dataset_offline.py`): runs once over the entire dataset to extract and save raw face-cropped frames to `data/processed_frames/` as `.npy` files.
-2. **Online/dynamic transforms** (`preprocessing/video_preprocessing.py`, `VisualTransform`): applied at dataset load time in `__getitem__` ó augmentation and normalization are applied dynamically, not stored.
+2. **Online/dynamic transforms** (`preprocessing/video_preprocessing.py`, `VisualTransform`): applied at dataset load time in `__getitem__` ‚Äî augmentation and normalization are applied dynamically, not stored.
 
 The Streamlit application uses a subset of these same preprocessing classes (`VideoPreprocessor`, `RetinaFaceCropper`, `VisualTransform`) for live inference, ensuring inference-time preprocessing matches training-time preprocessing.
 
-### 8.2 Frame Sampling ó `UniformTemporalSampler`
+### 8.2 Frame Sampling ‚Äî `UniformTemporalSampler`
 
 **Class:** `preprocessing.video_preprocessing.UniformTemporalSampler`  
 **Config:** `num_frames=16`
@@ -815,9 +815,9 @@ The Streamlit application uses a subset of these same preprocessing classes (`Vi
 3. Reads exactly those frames, duplicating indices if the video is shorter than 16 frames.
 4. If a video has fewer frames than 16, `linspace` automatically handles it by repeating indices.
 
-**Design rationale:** Uniform temporal sampling ensures consistent coverage of the entire video regardless of duration, avoids bias towards the beginning or end, and is fully deterministic ó given the same video, the same 16 frame indices are always selected.
+**Design rationale:** Uniform temporal sampling ensures consistent coverage of the entire video regardless of duration, avoids bias towards the beginning or end, and is fully deterministic ‚Äî given the same video, the same 16 frame indices are always selected.
 
-### 8.3 Face Detection and Cropping ó `RetinaFaceCropper`
+### 8.3 Face Detection and Cropping ‚Äî `RetinaFaceCropper`
 
 **Class:** `preprocessing.video_preprocessing.RetinaFaceCropper`  
 **Backend:** InsightFace `FaceAnalysis` using the `det_10g` model  
@@ -826,14 +826,14 @@ The Streamlit application uses a subset of these same preprocessing classes (`Vi
 
 **`crop_face(frame)` algorithm:**
 1. Convert frame from RGB to BGR (InsightFace uses BGR).
-2. Run `FaceAnalysis.get(frame_bgr)` ó returns a list of detected faces.
+2. Run `FaceAnalysis.get(frame_bgr)` ‚Äî returns a list of detected faces.
 3. If no faces detected: return `None` (triggers fallback logic).
 4. If multiple faces detected: select the **largest face by bounding-box area**.
 5. Expand the detected bounding box by `margin=20%` in each direction (clamped to image boundaries).
-6. Crop the expanded region and resize to `224◊224` using `cv2.INTER_CUBIC`.
+6. Crop the expanded region and resize to `224√ó224` using `cv2.INTER_CUBIC`.
 7. Return the crop and metadata dict containing both the expanded and original bounding boxes.
 
-**`apply_bbox_and_crop(frame, bbox)` ó forward-fill method:**
+**`apply_bbox_and_crop(frame, bbox)` ‚Äî forward-fill method:**
 Applies a previously computed bounding box (from an earlier frame) to a new frame. Applies the same margin expansion and resize. Used when direct detection fails but a prior bounding box is available.
 
 **Why 20% margin:** The margin ensures that facial context (hairline, jaw) is included in the crop, which may carry deepfake artifacts, and provides robustness against small bounding-box drift between frames.
@@ -846,20 +846,20 @@ The offline preprocessing script and the `VideoPreprocessor` both implement a th
 
 ```
 For each of the 16 sampled frames:
-¶
+¬¶
 +-- 1. Direct RetinaFace detection
-¶       ? Success: crop face, update last_valid_bbox
-¶
+¬¶       ? Success: crop face, update last_valid_bbox
+¬¶
 +-- 2. Forward-fill (if last_valid_bbox exists)
-¶       ? Apply previous bbox to current frame
-¶       ? Records as "forward_filled" in failure log
-¶
+¬¶       ? Apply previous bbox to current frame
+¬¶       ? Records as "forward_filled" in failure log
+¬¶
 +-- 3. Center-crop fallback (if no valid bbox ever seen)
-        ? Extract 224◊224 centered region from frame
-        ? Resize if extracted region is smaller than 224◊224
+        ? Extract 224√ó224 centered region from frame
+        ? Resize if extracted region is smaller than 224√ó224
         ? Records as "center_fallback" in failure log
         ? Last resort: if even center crop has 0 pixels, uses
-          a black 224◊224 zero array (edge case)
+          a black 224√ó224 zero array (edge case)
 ```
 
 **Forward-fill rationale:** Validated in Phase 1.8 to have mean geometric drift of only 1.63% across the 50-video quality check. The 20% bounding-box margin absorbs this drift comfortably. The forward-fill nearly halved the center-crop fallback rate.
@@ -868,25 +868,25 @@ For each of the 16 sampled frames:
 
 **Backward-filling was explicitly excluded:** It was considered in Phase 1.8 but excluded from the frozen methodology to maintain processing simplicity and avoid introducing temporal causality issues in the offline preprocessor.
 
-### 8.5 Augmentation and Normalization ó `VisualTransform`
+### 8.5 Augmentation and Normalization ‚Äî `VisualTransform`
 
 **Class:** `preprocessing.video_preprocessing.VisualTransform`
 
 **Training transforms** (`is_train=True`):
 | Transform | Parameters | Purpose |
 |---|---|---|
-| `HorizontalFlip` | p=0.5 | Geometric augmentation ó mirror invariance |
-| `Rotate` | ±10∞, p=1.0, INTER_CUBIC | Geometric augmentation ó small rotation invariance |
+| `HorizontalFlip` | p=0.5 | Geometric augmentation ‚Äî mirror invariance |
+| `Rotate` | ¬±10¬∞, p=1.0, INTER_CUBIC | Geometric augmentation ‚Äî small rotation invariance |
 | `ColorJitter` | brightness/contrast/saturation=0.1, hue=0.05, p=1.0 | Photometric augmentation |
-| `CoarseDropout` | max 1 hole, 2ñ22px, p=0.1 | Occlusion regularization |
+| `CoarseDropout` | max 1 hole, 2‚Äì22px, p=0.1 | Occlusion regularization |
 | `Normalize` | ImageNet mean/std | Standard normalization |
-| `ToTensorV2` | ó | Convert to PyTorch tensor |
+| `ToTensorV2` | ‚Äî | Convert to PyTorch tensor |
 
 **Validation/Test/Inference transforms** (`is_train=False`):
 | Transform | Parameters |
 |---|---|
 | `Normalize` | ImageNet mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225] |
-| `ToTensorV2` | ó |
+| `ToTensorV2` | ‚Äî |
 
 **Important:** The offline preprocessing script uses `is_train=False` (no augmentation) and stores raw uint8 crops. Augmentations are applied dynamically in the dataset `__getitem__`. This means each training epoch applies *different random augmentations* to the same stored crops, providing effective data augmentation without storing multiple augmented copies.
 
@@ -898,7 +898,7 @@ For each of the 16 sampled frames:
 **Output directory:** `data/processed_frames/`  
 **File naming:** Mirrors the dataset directory structure: `data/processed_frames/<category>/<identity>/<filename>.npy`  
 **Array format:** `np.ndarray` shape `(16, 224, 224, 3)`, dtype `uint8`, raw unaugmented face crops  
-**Skip logic:** If the `.npy` file already exists, the video is skipped ó the script is fully resumable.  
+**Skip logic:** If the `.npy` file already exists, the video is skipped ‚Äî the script is fully resumable.  
 **Failure log:** Written to `data/processed_frames/failures.json`
 
 **Full preprocessing statistics:**
@@ -918,7 +918,7 @@ For each of the 16 sampled frames:
 At inference time in `app.py`, the `VideoPreprocessor` is used with `is_train=False`:
 - For video uploads: `VideoPreprocessor.process(video_path, return_raw_crops=True)` ? then `VisualTransform(is_train=False).apply(crop)` per frame.
 - For image uploads: `RetinaFaceCropper.crop_face(img_np)` ? `VisualTransform(is_train=False).apply(crop)`.
-- **Fallback in app.py:** If face detection fails on an uploaded image (e.g., `real_image_3120.jpg`), the application falls back to resizing the entire image to 224◊224 rather than returning an error, ensuring graceful degradation for demo purposes.
+- **Fallback in app.py:** If face detection fails on an uploaded image (e.g., `real_image_3120.jpg`), the application falls back to resizing the entire image to 224√ó224 rather than returning an error, ensuring graceful degradation for demo purposes.
 
 ---
 
@@ -930,12 +930,12 @@ Audio preprocessing also runs in two phases:
 1. **Offline extraction and spectrogram generation** (`scripts/preprocess_audio_offline.py`): runs once to extract WAV files and generate log-mel spectrogram `.npy` arrays for all 21,544 videos.
 2. **Online spectrogram generation** (in `app.py`): the `AudioExtractor` and `SpectrogramGenerator` are called live on uploaded files during Streamlit inference.
 
-### 9.2 Audio Extraction ó `AudioExtractor`
+### 9.2 Audio Extraction ‚Äî `AudioExtractor`
 
 **Class:** `preprocessing.audio_preprocessing.AudioExtractor`  
 **Dependency:** `imageio-ffmpeg` (provides a bundled FFmpeg binary; no system FFmpeg installation required)
 
-**Constructor:** `AudioExtractor(sample_rate=16000, channels=1)` ó locates the FFmpeg executable from `imageio_ffmpeg.get_ffmpeg_exe()`.
+**Constructor:** `AudioExtractor(sample_rate=16000, channels=1)` ‚Äî locates the FFmpeg executable from `imageio_ffmpeg.get_ffmpeg_exe()`.
 
 **`extract(video_path, output_wav_path)` algorithm:**
 1. Validates that the source video file exists.
@@ -951,7 +951,7 @@ Audio preprocessing also runs in two phases:
 
 **Why 16 kHz mono:** 16 kHz captures all speech-relevant frequencies (below 8 kHz by Nyquist) while keeping file sizes manageable. Mono reduces data dimensionality without losing the information relevant to deepfake detection, as voice synthesis artifacts are not stereo-specific.
 
-### 9.3 Spectrogram Generation ó `SpectrogramGenerator`
+### 9.3 Spectrogram Generation ‚Äî `SpectrogramGenerator`
 
 **Class:** `preprocessing.audio_preprocessing.SpectrogramGenerator`  
 **Output:** `float32` tensor of shape `(3, 224, 224)` stored as `.npy`
@@ -969,22 +969,22 @@ Configures:
 4. Apply `MelSpectrogram` ? `(1, 128, time_frames)` power spectrogram.
 5. Apply `AmplitudeToDB` ? log-mel spectrogram in dB.
 6. Unsqueeze to `(1, 1, 128, time_frames)`.
-7. Bilinear interpolate to `(1, 1, 224, 224)` ó fixed spatial size regardless of audio duration.
+7. Bilinear interpolate to `(1, 1, 224, 224)` ‚Äî fixed spatial size regardless of audio duration.
 8. Squeeze to `(1, 224, 224)`.
 9. Repeat across 3 channels ? `(3, 224, 224)` float32.
 
-**Why `(3, 224, 224)`:** EfficientNet-B0 expects a 3-channel 224◊224 image. By treating the log-mel spectrogram as a grayscale image and replicating it to 3 channels, the pretrained backbone can process it directly without architectural modifications.
+**Why `(3, 224, 224)`:** EfficientNet-B0 expects a 3-channel 224√ó224 image. By treating the log-mel spectrogram as a grayscale image and replicating it to 3 channels, the pretrained backbone can process it directly without architectural modifications.
 
-**Why bilinear resize to fixed 224◊224:** Audio duration varies across the dataset. Bilinear interpolation normalizes all spectrograms to the same spatial dimensions, making batch processing straightforward. The time axis is compressed or stretched to fit 224 pixels; frequency resolution (128 mel bins) is also resampled to 224 pixels.
+**Why bilinear resize to fixed 224√ó224:** Audio duration varies across the dataset. Bilinear interpolation normalizes all spectrograms to the same spatial dimensions, making batch processing straightforward. The time axis is compressed or stretched to fit 224 pixels; frequency resolution (128 mel bins) is also resampled to 224 pixels.
 
-**Why log-mel (dB scale):** Human perception of audio is approximately logarithmic in both frequency and amplitude. The log-mel spectrogram compresses the dynamic range of the power spectrum, making subtle artifacts more prominent and the representation more uniform ó both beneficial for neural network learning.
+**Why log-mel (dB scale):** Human perception of audio is approximately logarithmic in both frequency and amplitude. The log-mel spectrogram compresses the dynamic range of the power spectrum, making subtle artifacts more prominent and the representation more uniform ‚Äî both beneficial for neural network learning.
 
 ### 9.4 Offline Preprocessing Output
 
 **Script:** `scripts/preprocess_audio_offline.py`  
 **Output directories:**
-- `data/processed_audio/raw_wav/` ó extracted WAV files
-- `data/processed_audio/spectrograms/` ó `.npy` spectrogram tensors
+- `data/processed_audio/raw_wav/` ‚Äî extracted WAV files
+- `data/processed_audio/spectrograms/` ‚Äî `.npy` spectrogram tensors
 
 **File naming:** Mirrors dataset structure: `data/processed_audio/spectrograms/<category>/<identity>/<filename>.npy`
 
@@ -999,7 +999,7 @@ Configures:
 | Spectrograms | ~12.08 GB |
 | Runtime | ~46m 14s (~7.77 videos/sec) |
 
-**Skip logic:** Both raw WAV and spectrogram files are checked ó if both already exist, the video is skipped. The script is fully resumable.
+**Skip logic:** Both raw WAV and spectrogram files are checked ‚Äî if both already exist, the video is skipped. The script is fully resumable.
 
 ### 9.5 Dependency Notes
 
@@ -1026,14 +1026,14 @@ Configures:
 
 **Constructor:** `MultimodalDeepfakeDataset(csv_path, video_dir, audio_dir, is_train=False)`
 - Reads the canonical CSV manifest (one row per video).
-- Constructs an `albumentations.Compose` pipeline with `additional_targets` ó keys `image1` through `image15` all declared as type `'image'` ó so all 16 frames receive identical random transforms per sample.
+- Constructs an `albumentations.Compose` pipeline with `additional_targets` ‚Äî keys `image1` through `image15` all declared as type `'image'` ‚Äî so all 16 frames receive identical random transforms per sample.
 
 **`__getitem__(idx)` algorithm:**
 1. Read `sample_path` from the DataFrame row.
 2. Derive `.npy` paths: `video_dir/<base_path>.npy` and `audio_dir/<base_path>.npy`. Raises `FileNotFoundError` if either is missing.
 3. Load video: `np.load(video_path)` ? `(16, 224, 224, 3)` uint8 array.
 4. Build albumentations kwargs: `{'image': frame_0, 'image1': frame_1, ..., 'image15': frame_15}`.
-5. Apply the transform pipeline (augmentation + normalization) once ó all 16 frames share the same random seed for this call.
+5. Apply the transform pipeline (augmentation + normalization) once ‚Äî all 16 frames share the same random seed for this call.
 6. Reconstruct as `torch.stack([transformed['image'], ...])` ? `(16, 3, 224, 224)` float32.
 7. Load audio: `np.load(audio_path)` ? `(3, 224, 224)` float32 ? `torch.from_numpy().float()`.
 8. Parse all three labels via `_parse_label`:
@@ -1047,16 +1047,16 @@ Configures:
 
 | Mode | Transforms applied |
 |---|---|
-| `is_train=True` | HorizontalFlip (p=0.5) + Rotate ±10∞ (p=0.5) + ColorJitter (p=0.5) + Normalize + ToTensorV2 |
+| `is_train=True` | HorizontalFlip (p=0.5) + Rotate ¬±10¬∞ (p=0.5) + ColorJitter (p=0.5) + Normalize + ToTensorV2 |
 | `is_train=False` | Normalize + ToTensorV2 only |
 
-No augmentation is ever applied at eval time ó this is critical for reproducible validation and test metric computation.
+No augmentation is ever applied at eval time ‚Äî this is critical for reproducible validation and test metric computation.
 
 ### 10.2 Class Imbalance Handling
 
-**Problem:** The training split has a severe class imbalance ó approximately 4.64% Real (700) vs 95.36% Fake (14,383). A naÔve DataLoader would produce batches that are ~95% Fake, which would allow a model to achieve high accuracy by predicting Fake for everything, and would starve the Real class of gradient signal.
+**Problem:** The training split has a severe class imbalance ‚Äî approximately 4.64% Real (700) vs 95.36% Fake (14,383). A na√Øve DataLoader would produce batches that are ~95% Fake, which would allow a model to achieve high accuracy by predicting Fake for everything, and would starve the Real class of gradient signal.
 
-**Solution ó `WeightedRandomSampler`:**
+**Solution ‚Äî `WeightedRandomSampler`:**
 
 The factory computes per-sample sampling weights as the inverse of their class frequency:
 - `weight_real = 1.0 / 700` (each Real sample is assigned this weight)
@@ -1065,11 +1065,11 @@ The factory computes per-sample sampling weights as the inverse of their class f
 The `WeightedRandomSampler` draws `len(dataset)` samples with replacement, using these weights. The result is that each training batch contains approximately equal numbers of Real and Fake samples (~50/50), regardless of the dataset's natural distribution.
 
 **Key implementation details:**
-- `num_samples=len(dataset)` ó the epoch length (number of batches) is preserved; the sampler does not artificially inflate or shrink the epoch.
-- `replacement=True` ó Real samples are drawn multiple times per epoch (oversampling); Fake samples are drawn less often than their full count (undersampling).
-- The sampler applies only to the training DataLoader. Validation and test use `shuffle=False`, sequential loading ó the natural unbalanced distribution is preserved, which is required for realistic performance estimation.
+- `num_samples=len(dataset)` ‚Äî the epoch length (number of batches) is preserved; the sampler does not artificially inflate or shrink the epoch.
+- `replacement=True` ‚Äî Real samples are drawn multiple times per epoch (oversampling); Fake samples are drawn less often than their full count (undersampling).
+- The sampler applies only to the training DataLoader. Validation and test use `shuffle=False`, sequential loading ‚Äî the natural unbalanced distribution is preserved, which is required for realistic performance estimation.
 
-**Complementary ó `BinaryFocalLoss`:** The loss function provides a second level of imbalance handling by down-weighting easy-to-classify examples (which are disproportionately Fake), reducing the effective dominance of the majority class even within balanced batches.
+**Complementary ‚Äî `BinaryFocalLoss`:** The loss function provides a second level of imbalance handling by down-weighting easy-to-classify examples (which are disproportionately Fake), reducing the effective dominance of the majority class even within balanced batches.
 
 ### 10.3 DataLoader Configuration
 
@@ -1112,11 +1112,11 @@ Focal Weight = (1 - p_t)^gamma
 Loss = Focal_Weight * BCE(logit, target)
 ```
 
-**Implementation detail:** The raw BCE term is computed using `F.binary_cross_entropy_with_logits(logits, targets, reduction='none')` ó this is numerically stable because it combines the sigmoid and cross-entropy in a single stable log-sum-exp operation rather than computing `sigmoid(logit)` and then taking `log`. The sigmoid for the focal weight computation is calculated separately.
+**Implementation detail:** The raw BCE term is computed using `F.binary_cross_entropy_with_logits(logits, targets, reduction='none')` ‚Äî this is numerically stable because it combines the sigmoid and cross-entropy in a single stable log-sum-exp operation rather than computing `sigmoid(logit)` and then taking `log`. The sigmoid for the focal weight computation is calculated separately.
 
 **Effect of `gamma=2.0`:**
-- If the model is highly confident and correct (p_t ò 1): weight ò `(1-1)^2 = 0` ? near-zero loss (easy example down-weighted)
-- If the model is uncertain or wrong (p_t ò 0): weight ò `(1-0)^2 = 1` ? full BCE loss preserved (hard example fully penalized)
+- If the model is highly confident and correct (p_t Àú 1): weight Àú `(1-1)^2 = 0` ? near-zero loss (easy example down-weighted)
+- If the model is uncertain or wrong (p_t Àú 0): weight Àú `(1-0)^2 = 1` ? full BCE loss preserved (hard example fully penalized)
 - This focuses gradient on genuinely difficult or misclassified examples, preventing the loss from being dominated by the many easy Fake predictions.
 
 ### 11.2 MultiTaskFocalLoss
@@ -1143,9 +1143,9 @@ total_loss = image_loss + audio_loss + fusion_loss
 
 **Returns:** `{'total': ..., 'image': ..., 'audio': ..., 'fusion': ...}`
 
-**Design choice ó equal unweighted summation:** All three head losses contribute equally to the total. No loss weighting was applied. The rationale is that the project's primary goal is modality decoupling, not maximizing a single head's accuracy. Equal weighting ensures no head is systematically privileged.
+**Design choice ‚Äî equal unweighted summation:** All three head losses contribute equally to the total. No loss weighting was applied. The rationale is that the project's primary goal is modality decoupling, not maximizing a single head's accuracy. Equal weighting ensures no head is systematically privileged.
 
-**`repeat_interleave` explanation:** During the forward pass with `return_all=True`, the visual encoder returns `(B◊T, 1280)` unpooled frame features, and the image head produces `(B◊T, 1)` per-frame logits. The `video_label` is `(B, 1)` ó one label per video, not per frame. `repeat_interleave(T, dim=0)` expands `[label_vid1, label_vid2]` to `[label_vid1, label_vid1, ...(◊T), label_vid2, label_vid2, ...(◊T)]`, correctly matching each frame's logit to its video's label. This avoids creating a separate per-frame label dataset.
+**`repeat_interleave` explanation:** During the forward pass with `return_all=True`, the visual encoder returns `(B√óT, 1280)` unpooled frame features, and the image head produces `(B√óT, 1)` per-frame logits. The `video_label` is `(B, 1)` ‚Äî one label per video, not per frame. `repeat_interleave(T, dim=0)` expands `[label_vid1, label_vid2]` to `[label_vid1, label_vid1, ...(√óT), label_vid2, label_vid2, ...(√óT)]`, correctly matching each frame's logit to its video's label. This avoids creating a separate per-frame label dataset.
 
 ### 11.3 Optimizer and Scheduler
 
@@ -1180,7 +1180,7 @@ total_loss = image_loss + audio_loss + fusion_loss
 **Script:** `scripts/train.py`  
 **Command:** `.\.venv_gpu\Scripts\python.exe scripts\train.py`
 
-The script configures all hyperparameters, instantiates the DataLoaders, model, and Trainer, then runs a 10-epoch loop printing per-epoch summaries. All epoch history is logged to `results/performance_curves/training_history.json`.
+The script configures all hyperparameters, instantiates the DataLoaders, model, and Trainer, then runs a 10-epoch loop printing per-epoch summaries. *(Note: The detailed epoch history JSON file, `results/performance_curves/training_history.json`, was recorded manually/separately during the official training run. The active `train.py` script executes the full loop but does not explicitly contain the file I/O to save this specific JSON tracking file).*
 
 **Final configuration used:**
 
@@ -1226,13 +1226,13 @@ All values sourced directly from `results/performance_curves/training_history.js
 
 ### 12.4 Training Dynamics Observations
 
-**Rapid audio convergence:** The audio head loss collapsed to near-zero by Epoch 6 (`val audio_loss = 0.0000`) and the Audio Head achieved 100% validation accuracy. Audio deepfake detection is an easier signal for the model to learn, likely because GAN/synthesis artifacts in the audio spectrogram are more distinctive than visual artifacts. Audio accuracy remained at 100% for all epochs 6ñ10.
+**Rapid audio convergence:** The audio head loss collapsed to near-zero by Epoch 6 (`val audio_loss = 0.0000`) and the Audio Head achieved 100% validation accuracy. Audio deepfake detection is an easier signal for the model to learn, likely because GAN/synthesis artifacts in the audio spectrogram are more distinctive than visual artifacts. Audio accuracy remained at 100% for all epochs 6‚Äì10.
 
 **Image head drives overfitting:** From Epoch 7 onwards, the total validation loss increased despite the training loss continuing to decrease. Inspecting per-head losses reveals that the image loss on validation grew substantially (0.0096 at Epoch 6 ? 0.0559 at Epoch 9), while the audio and fusion heads remained stable. The image head learned to overfit to the training distribution of visual artifacts after Epoch 6.
 
-**Fusion head follows image head:** The fusion head's validation loss also increased post-Epoch 6, which is expected since it concatenates visual and audio features ó the visual overfitting propagates into the fused representation.
+**Fusion head follows image head:** The fusion head's validation loss also increased post-Epoch 6, which is expected since it concatenates visual and audio features ‚Äî the visual overfitting propagates into the fused representation.
 
-**Conclusion ó Epoch 6 is the correct best checkpoint:** Epoch 6 represents the optimal bias-variance tradeoff across all three heads simultaneously: the audio head had converged to near-perfect accuracy, the image head had not yet overfit, and the fusion head was at its lowest validation loss.
+**Conclusion ‚Äî Epoch 6 is the correct best checkpoint:** Epoch 6 represents the optimal bias-variance tradeoff across all three heads simultaneously: the audio head had converged to near-perfect accuracy, the image head had not yet overfit, and the fusion head was at its lowest validation loss.
 
 ### 12.5 Checkpoint Selection and Saving
 
@@ -1261,7 +1261,7 @@ model.load_state_dict(checkpoint['model_state_dict'])
 model.eval()
 ```
 
-`weights_only=False` is required because the checkpoint contains non-tensor Python objects. `pretrained=False` is correct at load time ó the trained weights from the checkpoint override the backbone initialization.
+`weights_only=False` is required because the checkpoint contains non-tensor Python objects. `pretrained=False` is correct at load time ‚Äî the trained weights from the checkpoint override the backbone initialization.
 
 ---
 
@@ -1276,7 +1276,7 @@ The evaluation script runs a single inference pass over the entire held-out test
 
 ### 13.2 Image Head Probability Aggregation
 
-During evaluation, the image head produces `(B◊16, 1)` per-frame logits for each batch. These are converted to per-frame probabilities and averaged across the 16 frames to yield one image-head probability per video:
+During evaluation, the image head produces `(B√ó16, 1)` per-frame logits for each batch. These are converted to per-frame probabilities and averaged across the 16 frames to yield one image-head probability per video:
 
 ```python
 img_probs = torch.sigmoid(img_logits).view(B, 16).mean(dim=1)  # (B,)
@@ -1321,7 +1321,7 @@ The evaluation script additionally computes per-category accuracy and mean fake 
 | Image/Audio/Fusion ROC curves | `results/roc_curves/*.png` |
 | Four-category modality diagnostic CSV | `results/modality_analysis/modality_category_results.csv` |
 
-All outputs are deterministic ó re-running the script with the same checkpoint and test set will produce identical results.
+All outputs are deterministic ‚Äî re-running the script with the same checkpoint and test set will produce identical results.
 
 ---
 
@@ -1343,7 +1343,7 @@ Evaluated on the frozen held-out test set of **3,270 samples** using the **Epoch
 
 All three heads achieve above 99.9% accuracy and F1, with ROC-AUC exceeding 0.9996 for all heads.
 
-**Precision = 100.00% for Image and Fusion heads** means zero false positives ó every sample predicted as Fake was genuinely fake. The non-zero false negatives (real samples predicted as fake) account for the ~0.10% recall shortfall.
+**Precision = 100.00% for Image and Fusion heads** means zero false positives ‚Äî every sample predicted as Fake was genuinely fake. The non-zero false negatives (real samples predicted as fake) account for the ~0.10% recall shortfall.
 
 **Audio Head ROC-AUC = 0.9999** is the highest among all heads, indicating that audio spectrogram features are nearly perfectly separable between authentic and synthesized audio within this dataset.
 
@@ -1383,7 +1383,7 @@ Source: `results/modality_analysis/modality_category_results.csv`
 | RealVideo-FakeAudio | 75 | 100.00% | 100.00% | 100.00% | 5.44% | 98.93% | 0.08% |
 | FakeVideo-FakeAudio | 1,649 | 100.00% | 99.94% | 100.00% | 99.51% | 99.71% | 100.00% |
 
-### 14.4 The Key Scientific Finding ó Modality Decoupling
+### 14.4 The Key Scientific Finding ‚Äî Modality Decoupling
 
 The `RealVideo-FakeAudio` category (N=75) is the scientifically definitive test case:
 
@@ -1423,13 +1423,13 @@ Source: `results/error_analysis/error_summary.csv`
 
 **Total errors across all heads: 8** (on 3,270 samples across 3 heads = 9,810 individual head-predictions)
 
-The false positive count is **zero** for the Fusion Head: every sample predicted Fake was genuinely manipulated. The model is conservative in one direction ó it occasionally misses a fake video (false negative) but never incorrectly flags a real one.
+The false positive count is **zero** for the Fusion Head: every sample predicted Fake was genuinely manipulated. The model is conservative in one direction ‚Äî it occasionally misses a fake video (false negative) but never incorrectly flags a real one.
 
-### 15.2 False Positives ó None Observed
+### 15.2 False Positives ‚Äî None Observed
 
-The `results/error_analysis/false_positives.csv` file contains only a header row ó no false positives were recorded. This confirms that Image Head Precision = 100% and Fusion Head Precision = 100% from the formal metrics are accurate: not a single real sample was misclassified as fake by either the Image or Fusion head.
+The `results/error_analysis/false_positives.csv` file contains only a header row ‚Äî no false positives were recorded. This confirms that Image Head Precision = 100% and Fusion Head Precision = 100% from the formal metrics are accurate: not a single real sample was misclassified as fake by either the Image or Fusion head.
 
-### 15.3 False Negatives ó 3 Cases
+### 15.3 False Negatives ‚Äî 3 Cases
 
 All 3 false negatives are from the `FakeVideo-RealAudio` category (Category C in the FakeAVCeleb taxonomy). All three are `faceswap`-method deepfakes with authentic audio.
 
@@ -1444,7 +1444,7 @@ All 3 false negatives are from the `FakeVideo-RealAudio` category (Category C in
 - All three have audio head fake probabilities below 1%, consistent with authentic audio (as labeled).
 - The audio is genuinely real, so the audio head correctly returns low fake probability.
 - The visual manipulation in these videos is subtle enough that the image head predicts near-Real probabilities.
-- These represent the hardest visual deepfakes in the test set ó cases where the face-swap quality is high enough to fool the image encoder.
+- These represent the hardest visual deepfakes in the test set ‚Äî cases where the face-swap quality is high enough to fool the image encoder.
 
 **Why the Fusion Head also misses them:** The fusion head predicts based on the joint visual-audio representation. Since the audio is authentic (near-zero probability), the fusion output is dominated by the visual signal, which is itself below the threshold. Both heads independently lean toward Real, and the concatenated representation reinforces this.
 
@@ -1458,7 +1458,7 @@ All 3 false negatives are from the `FakeVideo-RealAudio` category (Category C in
 | Audio Head | 2 | False Negatives (audio) | From `FakeVideo-FakeAudio` |
 | Fusion Head | 3 | False Negatives | Same as Image Head errors |
 
-The Audio Head's 2 errors are independent of the Image Head's 3 errors, occurring in the `FakeVideo-FakeAudio` category ó samples where both video and audio were manipulated but the audio synthesis was sufficiently natural to be classified as Real by the Audio Head.
+The Audio Head's 2 errors are independent of the Image Head's 3 errors, occurring in the `FakeVideo-FakeAudio` category ‚Äî samples where both video and audio were manipulated but the audio synthesis was sufficiently natural to be classified as Real by the Audio Head.
 
 ---
 
@@ -1472,11 +1472,11 @@ Grad-CAM (Gradient-weighted Class Activation Mapping) is used to generate spatia
 
 ### 16.2 Target Layers
 
-Both encoders expose `self.grad_cam_layer` pointing to `self.features[-1]` ó the final MBConv block of EfficientNet-B0. This block produces spatial feature maps of shape `[N, 1280, 7, 7]` for 224◊224 inputs (7◊7 spatial grid). Grad-CAM over this layer produces a coarse 7◊7 spatial attribution map that is then upsampled to 224◊224.
+Both encoders expose `self.grad_cam_layer` pointing to `self.features[-1]` ‚Äî the final MBConv block of EfficientNet-B0. This block produces spatial feature maps of shape `[N, 1280, 7, 7]` for 224√ó224 inputs (7√ó7 spatial grid). Grad-CAM over this layer produces a coarse 7√ó7 spatial attribution map that is then upsampled to 224√ó224.
 
 Why the final convolutional block: earlier layers represent generic low-level features (edges, textures). The final block represents the most semantically rich, task-specific activations. Grad-CAM over the final block produces the most informative attributions.
 
-### 16.3 Implementation ó `GradCAM` Class
+### 16.3 Implementation ‚Äî `GradCAM` Class
 
 **Files:** `scripts/generate_gradcam.py`, `app.py` (embedded copy with `retain_graph=True`)
 
@@ -1524,7 +1524,7 @@ target_layer.register_full_backward_hook(save_gradient) # stores gradient tensor
 
 **Overlay creation:**
 ```
-1. Upsample heatmap from 7◊7 ? 224◊224 using cv2.resize (bilinear)
+1. Upsample heatmap from 7√ó7 ? 224√ó224 using cv2.resize (bilinear)
 2. Apply COLORMAP_JET ? BGR false-color map (blue=low, red=high)
 3. Convert BGR ? RGB
 4. cv2.addWeighted(original, 0.5, heatmap_colored, 0.5, 0)
@@ -1539,7 +1539,7 @@ img = (np.clip(img, 0, 1) * 255).astype(np.uint8)
 
 ### 16.4 Head-Specific Gradient Routing
 
-The critical property of the V2 Grad-CAM implementation: **gradients flow from the target head only**. By calling `prob.backward()` on `sigmoid(preds['image'])`, gradients propagate exclusively from the Image Head loss through the shared backbone to the visual encoder's target layer. By calling it on `sigmoid(preds['audio'])`, gradients propagate from the Audio Head through the audio encoder. This ensures each head's Grad-CAM reflects only that head's learned representations ó not a mixture.
+The critical property of the V2 Grad-CAM implementation: **gradients flow from the target head only**. By calling `prob.backward()` on `sigmoid(preds['image'])`, gradients propagate exclusively from the Image Head loss through the shared backbone to the visual encoder's target layer. By calling it on `sigmoid(preds['audio'])`, gradients propagate from the Audio Head through the audio encoder. This ensures each head's Grad-CAM reflects only that head's learned representations ‚Äî not a mixture.
 
 This is only possible because V2 has separate prediction heads. V1 had a single fused output, so its Grad-CAM gradient always mixed visual and audio signals with no way to isolate them.
 
@@ -1547,19 +1547,19 @@ This is only possible because V2 has separate prediction heads. V1 had a single 
 
 **Script:** `scripts/generate_gradcam.py`  
 **Samples:** One representative sample per four-category combination, taken from the first matching row in `test.csv` for each category.  
-**Frame selection:** Frames at indices `[0, 7, 15]` ó first, middle, last frame of the 16-frame sequence.
+**Frame selection:** Frames at indices `[0, 7, 15]` ‚Äî first, middle, last frame of the 16-frame sequence.
 
 **Per sample, generated files:**
-- `results/gradcam/<category>/visual_gradcam.png` ó 3◊2 grid: original frame + Grad-CAM overlay for frames 0, 7, 15
-- `results/gradcam/<category>/audio_gradcam.png` ó 1◊2 grid: original spectrogram + Grad-CAM overlay
-- `results/gradcam/<category>/metadata.txt` ó sample path, true labels, and predicted fake probabilities from all three heads
+- `results/gradcam/<category>/visual_gradcam.png` ‚Äî 3√ó2 grid: original frame + Grad-CAM overlay for frames 0, 7, 15
+- `results/gradcam/<category>/audio_gradcam.png` ‚Äî 1√ó2 grid: original spectrogram + Grad-CAM overlay
+- `results/gradcam/<category>/metadata.txt` ‚Äî sample path, true labels, and predicted fake probabilities from all three heads
 
 ### 16.6 Interpretability Constraints
 
 Grad-CAM provides **attribution**, not **proof**. The following constraints apply to all Grad-CAM results in this project:
 
 1. **Correlation, not causation:** A high-activation region indicates what the model paid attention to for its prediction, not necessarily a physical manipulation artifact at that location.
-2. **Coarse spatial resolution:** The 7◊7 feature map (upsampled to 224◊224) cannot pinpoint specific pixel-level artifacts. It identifies approximate regions of interest.
+2. **Coarse spatial resolution:** The 7√ó7 feature map (upsampled to 224√ó224) cannot pinpoint specific pixel-level artifacts. It identifies approximate regions of interest.
 3. **Single-sample evidence:** One representative sample per category is not statistically sufficient to make claims about the model's general attention patterns.
 4. **Backward hook limitations:** `register_full_backward_hook` captures the gradient of the loss with respect to the output of the target layer. This is the standard Grad-CAM formulation but may be affected by the AMP context in edge cases.
 
@@ -1598,8 +1598,8 @@ The Detection page provides a radio selector for input type: **Video**, **Image*
 
 **Image inference** (`process_image`):
 1. Open image with PIL, convert to RGB numpy array.
-2. `RetinaFaceCropper.crop_face(img_np)` ? 224◊224 face crop.
-3. **Fallback:** If face detection fails (returns `None`), the full image is resized to 224◊224 with `cv2.INTER_CUBIC` ó no error is raised.
+2. `RetinaFaceCropper.crop_face(img_np)` ? 224√ó224 face crop.
+3. **Fallback:** If face detection fails (returns `None`), the full image is resized to 224√ó224 with `cv2.INTER_CUBIC` ‚Äî no error is raised.
 4. `VisualTransform(is_train=False).apply(crop)` ? `(1, 3, 224, 224)` tensor on device.
 5. `GradCAM` for Image Head using `model(image=tensor, target_head='image')`.
 6. Display single prediction box and Grad-CAM overlay.
@@ -1651,7 +1651,7 @@ This renders via `st.markdown(unsafe_allow_html=True)`.
 
 | Behavior | Context |
 |---|---|
-| Face detection fallback (Image mode) | If RetinaFace returns no detection, the full image is resized to 224◊224 rather than returning an error |
+| Face detection fallback (Image mode) | If RetinaFace returns no detection, the full image is resized to 224√ó224 rather than returning an error |
 | Temporary files | Video and audio uploads are written to `tempfile.NamedTemporaryFile` and deleted after processing |
 | `retain_graph=True` in GradCAM | Used in `app.py` to allow multiple backward passes (video + audio Grad-CAM) on the same computation graph |
 | `use_container_width` ? `width="stretch"` | Deprecated Streamlit parameter replaced with `width="stretch"` to suppress warnings |
@@ -1677,11 +1677,11 @@ The directory is structured by modality and label, allowing users to test specif
 testing_data/
 +-- README.md                           ? Directory documentation
 +-- images/
-¶   +-- real/                           ? Authentic, unmanipulated face crops
-¶   +-- fake/                           ? Synthetically manipulated face crops
+¬¶   +-- real/                           ? Authentic, unmanipulated face crops
+¬¶   +-- fake/                           ? Synthetically manipulated face crops
 +-- audio/
-¶   +-- real/                           ? Authentic pristine audio clips
-¶   +-- fake/                           ? Synthesized/deepfake audio clips
+¬¶   +-- real/                           ? Authentic pristine audio clips
+¬¶   +-- fake/                           ? Synthesized/deepfake audio clips
 +-- videos/
     +-- real_video_real_audio/          ? Both modalities authentic
     +-- fake_video_real_audio/          ? Visually manipulated, audio authentic
@@ -1695,7 +1695,7 @@ The `videos/` subdirectory mirrors the four fundamental categories of the FakeAV
 
 ### 18.4 Fallback Demonstration
 
-The `testing_data/` directory also contains specific samples used to verify edge-case handling. For example, `images/real/real_image_3120.jpg` is a sample where the `RetinaFaceCropper` fails to detect a face. Including this sample ensures that the Streamlit application's fallback logic (resizing the full image to 224◊224 instead of crashing) can be reliably demonstrated and verified.
+The `testing_data/` directory also contains specific samples used to verify edge-case handling. For example, `images/real/real_image_3120.jpg` is a sample where the `RetinaFaceCropper` fails to detect a face. Including this sample ensures that the Streamlit application's fallback logic (resizing the full image to 224√ó224 instead of crashing) can be reliably demonstrated and verified.
 
 ---
 
@@ -1741,7 +1741,7 @@ The model is trained exclusively on the FakeAVCeleb dataset, which utilizes spec
 
 ### 20.4 Fixed Resolution (224x224)
 
-Both visual crops and audio spectrograms are resized to a fixed 224◊224 resolution to match the EfficientNet-B0 expected input size. This downscaling inherently destroys high-frequency details. Some state-of-the-art deepfake artifacts exist at the pixel-level in high-resolution media and may be smoothed out or lost during this resizing step.
+Both visual crops and audio spectrograms are resized to a fixed 224√ó224 resolution to match the EfficientNet-B0 expected input size. This downscaling inherently destroys high-frequency details. Some state-of-the-art deepfake artifacts exist at the pixel-level in high-resolution media and may be smoothed out or lost during this resizing step.
 
 ---
 
@@ -1842,7 +1842,7 @@ It provides exhaustive, highly detailed Q&A covering the conceptual foundation, 
 ### 23.1 Core Conceptual Questions
 
 **Q: What is the fundamental problem with unimodal deepfake detection, and how does this project address it?**
-A: Unimodal deepfake detection relies on a single source of truth‚Äîeither the visual stream (looking for blending artifacts, unnatural blinking, or face-swap boundaries) or the audio stream (looking for voice cloning artifacts or synthetic frequencies). The fundamental problem is that modern deepfakes are increasingly multimodal; an attacker might use pristine, authentic video footage but replace the audio track with a highly realistic cloned voice (e.g., a politician saying something they never said). A unimodal visual detector will analyze the pristine video, find no visual artifacts, and incorrectly classify the entire media as "Real," completely missing the synthesized audio. 
+A: Unimodal deepfake detection relies on a single source of truth√¢‚Ç¨‚Äùeither the visual stream (looking for blending artifacts, unnatural blinking, or face-swap boundaries) or the audio stream (looking for voice cloning artifacts or synthetic frequencies). The fundamental problem is that modern deepfakes are increasingly multimodal; an attacker might use pristine, authentic video footage but replace the audio track with a highly realistic cloned voice (e.g., a politician saying something they never said). A unimodal visual detector will analyze the pristine video, find no visual artifacts, and incorrectly classify the entire media as "Real," completely missing the synthesized audio. 
 This project addresses this by building a multimodal system capable of analyzing both streams simultaneously. However, as we discovered in V1, simply putting both streams into a network isn't enough; the network must be structurally forced to evaluate them independently, which is what the V2 architecture achieves.
 
 **Q: Explain the concept of "Visual Dominance" in detail. Why did it happen in the V1 model?**
