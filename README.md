@@ -4,7 +4,7 @@
 
 This project implements a Multi-Task Deepfake Detection architecture capable of independently analyzing visual and audio streams to detect synthetic manipulation. As generative AI becomes increasingly sophisticated, unimodal detection systems (e.g., analyzing only images) are easily bypassed by deepfakes that manipulate the opposite modality. 
 
-Our approach solves this by explicitly decoupling the detection pipeline into a unified multimodal network. It can pinpoint exactly whether the visual frames are manipulated, whether the audio track is synthetic, or whether both modalities have been altered, providing a comprehensive and robust defense against modern deepfakes.
+Our approach solves this by explicitly decoupling the detection pipeline into a unified multimodal network. It can pinpoint exactly whether the visual frames are manipulated, whether the audio track is synthetic, or whether both modalities have been altered, providing modality-specific predictions for the evaluated FakeAVCeleb scenarios.
 
 ## Key Features
 
@@ -12,8 +12,8 @@ Our approach solves this by explicitly decoupling the detection pipeline into a 
 - **Audio deepfake detection:** Analyzes Log-Mel Spectrograms through a specialized audio encoder to detect voice cloning and synthetic audio.
 - **Multimodal fusion:** Fuses visual and audio embeddings to output a comprehensive final prediction.
 - **Image/audio/video support:** Flexible inference accepting independent or combined modalities.
-- **Grad-CAM interpretability:** Generates visual heatmaps highlighting the exact regions in the face and frequencies in the audio spectrogram that influenced the model's decision.
-- **Streamlit demonstration:** Features an interactive web interface for running real-time multimodal inference and visualizing results.
+- **Grad-CAM interpretability:** Generates visual heatmaps highlighting approximate regions and frequency-time areas receiving strong attribution from the model that influenced the model's decision.
+- **Streamlit demonstration:** Features an interactive web interface for running interactive multimodal inference and visualizing results.
 
 ## Architecture
 

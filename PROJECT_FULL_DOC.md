@@ -52,7 +52,7 @@ The final system is packaged as:
 
 1. Implement a reproducible, identity-isolated dataset pipeline for the FakeAVCeleb dataset.
 2. Design and train a multi-task architecture with independent visual, audio, and fusion prediction heads.
-3. Demonstrate that the visual and audio branches learn genuinely decoupled representations — i.e., the audio head can detect fake audio even when paired with authentic video, and vice versa.
+3. Demonstrate that the visual and audio branches learn modality-specific representations — i.e., the audio head can detect fake audio even when paired with authentic video, and vice versa.
 4. Generate interpretability evidence (Grad-CAM) for each modality branch.
 5. Build an interactive demonstration application supporting single-image, audio-only, and full video+audio inference.
 
@@ -95,7 +95,7 @@ The project's answer is a **multi-task architecture** with three decoupled predi
 2. An **Audio Head** that predicts deepfake probability from audio features alone.
 3. A **Fusion Head** that predicts an overall probability from the joint representation.
 
-By training all three heads simultaneously with independent losses, the network is forced to build genuinely separate representations for each modality. The scientific value is demonstrated by the **four-category modality diagnostic**: on samples containing real video but fake audio, the image head correctly predicts REAL while the audio head independently predicts FAKE.
+By training all three heads simultaneously with independent losses, the network is forced to build modality-specific representations for each modality. The scientific value is demonstrated by the **four-category modality diagnostic**: on samples containing real video but fake audio, the image head correctly predicts REAL while the audio head independently predicts FAKE.
 
 ### 2.4 Project Scope and Constraints
 
@@ -1321,7 +1321,7 @@ The evaluation script additionally computes per-category accuracy and mean fake 
 | Image/Audio/Fusion ROC curves | `results/roc_curves/*.png` |
 | Four-category modality diagnostic CSV | `results/modality_analysis/modality_category_results.csv` |
 
-All outputs are deterministic — re-running the script with the same checkpoint and test set will produce identical results.
+Outputs are deterministic given the frozen test set and checkpoint, producing consistent results across evaluation runs.
 
 ---
 
@@ -1801,7 +1801,7 @@ python scripts/preprocess_dataset_offline.py
 
 ### 22.3 Training Command
 
-Trains the V2 Multi-Head model for 10 epochs.
+Trains the final Multi-Task Multi-Head model for 10 epochs.
 ```bash
 python scripts/train.py
 ```
@@ -1913,7 +1913,7 @@ These two vectors are concatenated along the feature dimension to form a (B, 256
 A: Exceptional metrics must always be scrutinized. We can defend this metric through three strict methodological guarantees:
 1. **Zero Identity Leakage:** The test set of 3,270 samples consists entirely of 75 human identities that the model *never* saw during training or validation. The model cannot be relying on memorized faces or backgrounds.
 2. **Frozen Test Set:** The test set was touched exactly twice: once for the final `evaluate_test.py` run, and once for Grad-CAM generation. It was never used for hyperparameter tuning, checkpoint selection, or architectural decisions.
-3. **Modality Decoupling Verification:** The most compelling defense is the model's behavior on the `RealVideo-FakeAudio` category. If the model were simply memorizing shortcuts, it would fail here. Instead, it demonstrates complex, nuanced understanding: the Image Head correctly predicts Real (5.4% fake prob) and the Audio Head correctly predicts Fake (98.9% fake prob) on the exact same file. This proves the high accuracy is derived from genuine, decoupled representation learning.
+3. **Modality Decoupling Verification:** The most compelling defense is the model's behavior on the `RealVideo-FakeAudio` category. If the model were simply memorizing shortcuts, it would fail here. Instead, it demonstrates complex, nuanced understanding: the Image Head correctly predicts Real (5.4% fake prob) and the Audio Head correctly predicts Fake (98.9% fake prob) on the exact same file. This provides strong empirical evidence that the high accuracy is derived from modality-specific representation learning.
 
 **Q: Explain the mechanism and purpose of Grad-CAM in this project.**
 A: Grad-CAM (Gradient-weighted Class Activation Mapping) is an interpretability technique used to visualize where a convolutional neural network is "looking." It works by registering hooks on the final convolutional block of the EfficientNet backbones. During a backward pass, we capture the gradients flowing into this layer with respect to the target class (e.g., the "Fake" class). We globally average-pool these gradients to compute a weight for each feature map, take a weighted sum of the activations, apply a ReLU to isolate positive influence, and upsample the resulting heatmap to overlay on the original image.
@@ -1932,6 +1932,6 @@ Second, I would upgrade the backbones from EfficientNet to Vision Transformers (
 
 ## 24. Final Project State
 
-The project has achieved its final target state. The transition from the V1 single-head architecture to the V2 Multi-Task architecture successfully resolved the critical flaw of visual dominance. By implementing independent prediction heads supervised by decoupled focal losses, the system achieved a scientifically verifiable decoupling of modalities. 
+The project has achieved its final target state. The transition from the V1 single-head architecture to the V2 Multi-Task architecture successfully resolved the critical flaw of visual dominance. By implementing independent prediction heads supervised by decoupled focal losses, the system achieved a demonstrable decoupling of modalities on the evaluated dataset. 
 
 The model achieves exceptional performance (ROC-AUC > 0.9996 across all heads) on a rigorously constructed, identity-isolated test set. The full pipeline - from offline preprocessing and multi-task training through formal evaluation and Streamlit-based interactive inference - is fully documented, reproducible, and ready for deployment or academic presentation.
