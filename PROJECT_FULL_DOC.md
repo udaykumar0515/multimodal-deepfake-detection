@@ -388,3 +388,352 @@ On `RealVideo + FakeAudio`: Image Head correctly predicted REAL (5.44% fake prob
 - **archive/ added to `.gitignore`:** Archive directory is local-only.
 
 ---
+
+---
+
+## 4. Final System Architecture
+
+### 4.1 Architecture Overview
+
+The final model is `MultiHeadDeepfakeModel`, a multi-task neural network with two independent EfficientNet-B0 backbone encoders (one visual, one audio) and three independent prediction heads. The model's defining property is that it can produce separate, potentially disagreeing predictions for each modality, which is the core scientific contribution of the project.
+
+```
+INPUT MODALITIES
+────────────────────────────────────────────────────────────────
+Video: (B, T=16, 3, 224, 224)         Audio: (B, 3, 224, 224)
+        │                                       │
+        ▼                                       ▼
+┌──────────────────┐                 ┌──────────────────────┐
+│  VisualEncoder   │                 │    AudioEncoder      │
+│  EfficientNet-B0 │                 │    EfficientNet-B0   │
+│                  │                 │                      │
+│  Fold T into B   │                 │  features + avgpool  │
+│  (B×T, 3,224,224)│                 │       ↓              │
+│  features+avgpool│                 │  (B, 1280)           │
+│  (B×T, 1280)     │                 └────────┬─────────────┘
+│  mean-pool or    │                          │
+│  return unpooled │                          │
+│  (B, 1280)       │                          │
+└──────┬───────────┘                          │
+       │ seq_rep (B, 1280)                    │ audio_feat (B, 1280)
+       │ frame_feats (B×T, 1280) [training]   │
+       │                                      │
+       ├──────────────────────────────────────┤
+       │           concat: (B, 2560)          │
+       │                                      │
+       ▼                                      │
+┌─────────────────────────────┐              │
+│       fusion_head           │              │
+│  Linear(2560→512)           │              │
+│  ReLU → Dropout(0.3)        │              │
+│  Linear(512→1)              │              │
+│  → fusion logit             │              │
+└─────────────────────────────┘              │
+                                             ▼
+                              ┌──────────────────────────┐
+                              │       audio_head         │
+                              │   Dropout(0.3)           │
+                              │   Linear(1280→1)         │
+                              │   → audio logit          │
+                              └──────────────────────────┘
+
+       frame_feats (B×T, 1280) [training only]
+       │
+       ▼
+┌──────────────────────────┐
+│       image_head         │
+│   Dropout(0.3)           │
+│   Linear(1280→1)         │
+│   → (B×T, 1) frame logits│
+└──────────────────────────┘
+```
+
+All heads output **raw logits** (no sigmoid inside the model). Sigmoid is applied externally by the loss function during training (`BCEWithLogitsLoss`-based Focal Loss) and explicitly during inference.
+
+---
+
+### 4.2 VisualEncoder
+
+**File:** `models/visual_encoder.py`
+
+**Purpose:** Encodes image or video input into a 1280-dimensional feature vector using a pretrained EfficientNet-B0 backbone.
+
+**Constructor:** `VisualEncoder(pretrained=True)` loads `EfficientNet_B0_Weights.IMAGENET1K_V1`. Retains `backbone.features` (the convolutional feature extractor) and `backbone.avgpool` (AdaptiveAvgPool2d → `[1, 1]`). Exposes `self.grad_cam_layer = self.features[-1]` (the final MBConv block) for Grad-CAM hook registration.
+
+**Forward dispatch:** Automatically detects input dimensionality:
+- **4D input** `(B, 3, 224, 224)` → `forward_image` → `(B, 1280)`
+- **5D input** `(B, T, 3, 224, 224)` → `forward_video` → `(B, 1280)` [or `(B, 1280) + (B×T, 1280)` if `return_unpooled=True`]
+
+**Video processing detail:**
+1. Reshape: `(B, T, 3, 224, 224)` → `(B×T, 3, 224, 224)` (fold time into batch dimension)
+2. Forward through `features + avgpool + flatten`: → `(B×T, 1280)` per-frame features
+3. Unfold: `(B×T, 1280)` → `(B, T, 1280)` → mean over T → `(B, 1280)` sequence representation
+4. If `return_unpooled=True`: return both `(B, 1280)` and raw `(B×T, 1280)`
+
+**Why `return_unpooled` matters:** During multi-task training, the Image Head receives the `(B×T, 1280)` unpooled frame features, so it learns to classify each frame independently rather than only the mean-pooled video summary.
+
+---
+
+### 4.3 AudioEncoder
+
+**File:** `models/audio_encoder.py`
+
+**Purpose:** Encodes a 3-channel 224×224 log-mel spectrogram into a 1280-dimensional feature vector.
+
+**Constructor:** `AudioEncoder(pretrained=True)` loads `EfficientNet_B0_Weights.IMAGENET1K_V1`. Retains `backbone.features` and `backbone.avgpool`. Exposes `self.grad_cam_layer = self.features[-1]` for Grad-CAM.
+
+**Forward:** `(B, 3, 224, 224)` → `features` → `avgpool` → `flatten` → `(B, 1280)`
+
+**Design rationale for treating spectrogram as image:** The log-mel spectrogram is a 2D time-frequency representation. Treating it as a 3-channel image (via channel duplication) allows the same pretrained EfficientNet-B0 to extract frequency and temporal patterns without requiring a separate audio-specific backbone. This is a pragmatic engineering choice motivated by the availability of strong pretrained image features.
+
+---
+
+### 4.4 MultiHeadDeepfakeModel — Forward Pass Logic
+
+**File:** `models/multihead_model.py`
+
+**Constructor:** `MultiHeadDeepfakeModel(pretrained=True, dropout=0.3)`
+
+The `forward` method enforces strict input routing via explicit combinatorial checks. Passing an invalid combination raises `ValueError` rather than silently producing incorrect results.
+
+**Routing logic:**
+
+| Inputs provided | Route | Output keys |
+|---|---|---|
+| `image` only (no video, no audio) | `VisualEncoder.forward_image` → `image_head` | `{'image': logit}` |
+| `audio` only (no video, no image) | `AudioEncoder` → `audio_head` | `{'audio': logit}` |
+| `video` + `audio`, `return_all=False` | `VisualEncoder` (pooled) + `AudioEncoder` → `fusion_head` | `{'fusion': logit}` |
+| `video` + `audio`, `return_all=True` | Both encoders; unpooled frame features → `image_head`; `audio_feat` → `audio_head`; concatenated → `fusion_head` | `{'fusion', 'audio', 'image'}` |
+
+`return_all=True` is used during training and is computationally complete. `return_all=False` is used for fusion-only inference.
+
+---
+
+### 4.5 Prediction Heads
+
+| Head | Input Shape | Architecture | Output Shape |
+|---|---|---|---|
+| `image_head` | `(B×T, 1280)` | `Dropout(0.3) → Linear(1280, 1)` | `(B×T, 1)` |
+| `audio_head` | `(B, 1280)` | `Dropout(0.3) → Linear(1280, 1)` | `(B, 1)` |
+| `fusion_head` | `(B, 2560)` | `Linear(2560, 512) → ReLU → Dropout(0.3) → Linear(512, 1)` | `(B, 1)` |
+
+The fusion head is deeper than the per-modality heads because it must learn to integrate two heterogeneous feature spaces (visual and audio) rather than specializing in a single modality.
+
+**Sigmoid and thresholding:** Applied externally. During inference: `prob = torch.sigmoid(logit)`. Classification threshold: `0.5` (Fake if `prob ≥ 0.5`).
+
+---
+
+### 4.6 Model Parameter Count
+
+From the project log Phase 5 sanity test (architecture unchanged in V2):
+- **Total trainable parameters:** 9,326,841
+- Both EfficientNet-B0 backbones are loaded with ImageNet pretrained weights. All parameters are trainable during fine-tuning (no frozen layers).
+
+---
+
+### 4.7 Grad-CAM Target Layer
+
+Both encoders expose `self.grad_cam_layer` pointing to `self.features[-1]`, which is the final `MBConv` block of EfficientNet-B0. This produces intermediate activation maps of shape `[B, 1280, 7, 7]` (for 224×224 inputs), which are the spatial feature maps used in the Grad-CAM computation.
+
+---
+
+## 5. Repository Structure
+
+### 5.1 Active Project Tree
+
+```
+Deepfake_Detection/                     ← Repository root
+│
+├── app.py                              ← Streamlit application entry point
+│
+├── models/                             ← Final model architecture
+│   ├── visual_encoder.py               ← VisualEncoder (EfficientNet-B0)
+│   ├── audio_encoder.py                ← AudioEncoder (EfficientNet-B0)
+│   ├── multihead_model.py              ← MultiHeadDeepfakeModel
+│   └── __init__.py
+│
+├── dataset/                            ← PyTorch dataset and dataloader
+│   ├── multimodal_dataset.py           ← MultimodalDeepfakeDataset
+│   ├── dataloader_factory.py           ← build_dataloaders() factory
+│   └── __init__.py
+│
+├── preprocessing/                      ← Preprocessing classes (used offline + in app)
+│   ├── video_preprocessing.py          ← UniformTemporalSampler, RetinaFaceCropper,
+│   │                                      VideoPreprocessor, VisualTransform
+│   ├── audio_preprocessing.py          ← AudioExtractor, SpectrogramGenerator
+│   └── __init__.py
+│
+├── training/                           ← Training loop and losses
+│   ├── trainer.py                      ← Trainer class (multi-task)
+│   ├── losses.py                       ← BinaryFocalLoss, MultiTaskFocalLoss
+│   └── __init__.py
+│
+├── scripts/                            ← Active executable entry points
+│   ├── train.py                        ← Full training run
+│   ├── evaluate_test.py                ← Held-out test evaluation
+│   ├── preprocess_dataset_offline.py   ← Offline video frame preprocessing
+│   ├── preprocess_audio_offline.py     ← Offline audio spectrogram preprocessing
+│   └── generate_gradcam.py             ← Grad-CAM visualization generation
+│
+├── checkpoints/                        ← Model checkpoints (git-ignored)
+│   ├── best_model.pt                   ← Best validation loss checkpoint (Epoch 6)
+│   └── latest_model.pt                 ← Last completed epoch checkpoint
+│
+├── results/                            ← Research evidence store
+│   ├── metrics/
+│   │   └── test_metrics.json           ← Final per-head test metrics
+│   ├── predictions/
+│   │   └── test_predictions.csv        ← Per-sample predictions + probabilities
+│   ├── confusion_matrices/             ← image, audio, fusion confusion matrix PNGs
+│   ├── roc_curves/                     ← image, audio, fusion ROC curve PNGs
+│   ├── precision_recall_curves/        ← Per-head PR curve PNGs
+│   ├── performance_curves/
+│   │   └── training_history.json       ← Per-epoch loss and metric history
+│   ├── modality_analysis/
+│   │   └── modality_category_results.csv
+│   ├── error_analysis/                 ← False positive / false negative CSVs
+│   ├── gradcam/                        ← Grad-CAM overlays by category
+│   ├── dataset_summary.json
+│   └── README.md                       ← Research evidence index
+│
+├── data/                               ← Processed dataset (git-ignored)
+│   ├── dataset_split/
+│   │   ├── train.csv                   ← Canonical training manifest
+│   │   ├── val.csv                     ← Canonical validation manifest
+│   │   └── test.csv                    ← Canonical test manifest
+│   ├── processed_frames/               ← Offline .npy video frame arrays (~48 GB)
+│   ├── processed_audio/                ← Offline .npy spectrogram arrays (~15 GB)
+│   └── README.md
+│
+├── testing_data/                       ← Demo samples for Streamlit testing
+│   ├── images/real/ and images/fake/
+│   ├── audio/real/ and audio/fake/
+│   ├── videos/<four categories>/
+│   ├── TESTING_DATA_MANIFEST.csv
+│   └── README.md
+│
+├── docs/                               ← Project documentation files
+├── archive/                            ← Historical/superseded artefacts (git-ignored)
+│
+├── PROJECT_LOG.md                      ← Permanent development history
+├── PROJECT_FULL_DOC.md                 ← This document
+├── README.md                           ← Public-facing repository summary
+├── .gitignore
+└── .env                                ← PYTHONPATH=. (sets project root on path)
+```
+
+### 5.2 Key File Relationships
+
+- `app.py` imports from `models/`, `preprocessing/`, and reads from `results/` and `checkpoints/`.
+- `scripts/train.py` orchestrates `dataset/`, `models/`, and `training/`.
+- `scripts/evaluate_test.py` loads `checkpoints/best_model.pt`, uses `dataset/`, writes to `results/`.
+- `scripts/generate_gradcam.py` loads `checkpoints/best_model.pt`, uses `preprocessing/` and `data/dataset_split/`, writes to `results/gradcam/`.
+- `preprocessing/` classes are shared between the offline scripts and the live Streamlit inference pipeline. This ensures identical preprocessing is applied during training-time preprocessing and at inference time.
+
+### 5.3 git-ignored Paths
+
+The following directories and their contents are not committed to the remote repository:
+- `.venv_gpu/` — Python virtual environment
+- `data/processed_frames/` — ~48 GB offline video frames
+- `data/processed_audio/` — ~15 GB offline spectrograms
+- `checkpoints/` — trained model weights
+- `archive/` — historical artefacts
+- `.vscode/` — editor configuration
+- `Dataset_FakeAVCeleb/` — raw dataset
+
+---
+
+## 6. Dataset — FakeAVCeleb
+
+### 6.1 Overview and Source
+
+**Name:** FakeAVCeleb  
+**Type:** Multimodal (audio-visual) deepfake detection benchmark dataset  
+**Storage:** Local filesystem only. Not committed to the repository. Referenced via the path `Dataset_FakeAVCeleb/` relative to the project root.
+
+FakeAVCeleb is a comprehensive audiovisual deepfake dataset containing videos with four distinct manipulation categories, making it specifically suitable for studying multimodal deepfake scenarios:
+
+| Category | Description |
+|---|---|
+| `RealVideo-RealAudio` | Authentic video and authentic audio (genuine footage) |
+| `FakeVideo-RealAudio` | Face-swapped/synthesized video with the original authentic audio |
+| `RealVideo-FakeAudio` | Authentic video with synthesized/cloned audio |
+| `FakeVideo-FakeAudio` | Both visual and audio streams manipulated |
+
+This four-category structure is what makes FakeAVCeleb uniquely suited to the project's scientific goal: demonstrating that independent modality heads learn separate, decoupled representations.
+
+### 6.2 Composition and Labels
+
+**Raw metadata file:** `Dataset_FakeAVCeleb/meta_data.csv`
+
+- **Total metadata rows:** 21,566
+- **Unique physical video paths:** 21,544 (22 paths appear in two rows each — see Section 6.4)
+- **Unique source identities:** 500 (the `source` field)
+- **`type` field:** Encodes the four-category label (`RealVideo-RealAudio`, `FakeVideo-RealAudio`, `RealVideo-FakeAudio`, `FakeVideo-FakeAudio`)
+- **`method` field:** Records the manipulation technique. Known values include `wav2lip` and `faceswap-wav2lip`.
+
+**Label derivation:**
+
+| `type` prefix | `video_label` | `audio_label` | Primary `label` |
+|---|---|---|---|
+| `RealVideo-*` | Real | depends on suffix | Real |
+| `FakeVideo-*` | Fake | depends on suffix | Fake |
+| `*-RealAudio` | depends on prefix | Real | — |
+| `*-FakeAudio` | depends on prefix | Fake | — |
+
+The primary `label` (used for the Fusion Head and WeightedRandomSampler) mirrors `video_label`. The multi-task training additionally uses `audio_label` independently to supervise the Audio Head.
+
+### 6.3 Canonical Dataset Statistics
+
+After identity-based splitting and deduplication (one row per physical video):
+
+| Split | Identities | Videos | Real Videos | Fake Videos | Real % |
+|---|---|---|---|---|---|
+| **Train** | 350 | 15,083 | 700 | 14,383 | 4.64% |
+| **Validation** | 75 | 3,191 | 150 | 3,041 | 4.70% |
+| **Test** | 75 | 3,270 | 150 | 3,120 | 4.59% |
+| **Total** | 500 | 21,544 | 1,000 | 20,544 | 4.64% |
+
+**Class imbalance note:** The dataset is severely imbalanced (~95% Fake, ~5% Real). This is addressed during training by `WeightedRandomSampler` (producing balanced batches) and `BinaryFocalLoss` (down-weighting easy examples). Validation and test loaders use the natural unbalanced distribution to report realistic performance estimates.
+
+**Test split category breakdown** (from `results/dataset_summary.json`):
+
+| Category | Count |
+|---|---|
+| RealVideo-RealAudio | 75 |
+| FakeVideo-RealAudio | 1,471 |
+| RealVideo-FakeAudio | 75 |
+| FakeVideo-FakeAudio | 1,649 |
+| **Total** | **3,270** |
+
+### 6.4 Duplicate Record Policy
+
+The raw metadata contains 44 rows referencing 22 physical video paths twice each. Each duplicate pair differs only in the `method` field (`faceswap-wav2lip` vs `wav2lip`), with no label conflicts.
+
+**Resolution:**
+- The original split CSVs (`data/splits/`) retain all 21,566 rows for complete provenance.
+- The canonical manifests (`data/dataset_split/`) contain exactly one row per physical video. The two method annotations are stored in a `method_annotations` column; both original rows are preserved in a JSON `metadata_provenance` field.
+- All preprocessing was performed using the canonical manifests only, ensuring each physical video was processed exactly once.
+
+### 6.5 Manifest Layers
+
+| File | Purpose | Row count |
+|---|---|---|
+| `data/splits/train.csv` | Original split — provenance layer | 15,099 |
+| `data/splits/val.csv` | Original split — provenance layer | 3,194 |
+| `data/splits/test.csv` | Original split — provenance layer | 3,273 |
+| `data/dataset_split/train.csv` | **Canonical — used for all preprocessing and training** | 15,083 |
+| `data/dataset_split/val.csv` | **Canonical — used for all preprocessing and training** | 3,191 |
+| `data/dataset_split/test.csv` | **Canonical — used for all preprocessing and training** | 3,270 |
+
+### 6.6 Reproducibility Guarantees
+
+The canonical manifests were generated with a deterministic identity-assignment algorithm (fixed seed `42`, sorted identities). SHA-256 hash stability was verified across multiple regenerations:
+
+- Train canonical SHA-256: `DC01136A51350C8A7D3550A5B2187AAAB9DFF1CE6108EA36CD94E4AF54724FA8`
+- Val canonical SHA-256: `23F4423F59E96D99A1AB7A7B7D3ADCAEB5F13E37EC7A7EE29E8D70C2BE686829`
+- Test canonical SHA-256: `A1DEEE798316E82BF345605008BE2B55A15C35BE1DD1D8CBC199BEF0C69D1BDE`
+
+These hashes can be used to verify dataset pipeline integrity if the scripts are re-run.
+
+---
