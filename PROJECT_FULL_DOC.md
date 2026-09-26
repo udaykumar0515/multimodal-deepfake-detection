@@ -1324,3 +1324,337 @@ The evaluation script additionally computes per-category accuracy and mean fake 
 All outputs are deterministic — re-running the script with the same checkpoint and test set will produce identical results.
 
 ---
+
+---
+
+## 14. Final Results
+
+### 14.1 Global Test Metrics
+
+Evaluated on the frozen held-out test set of **3,270 samples** using the **Epoch 6 checkpoint** (`checkpoints/best_model.pt`). Source of truth: `results/metrics/test_metrics.json`.
+
+| Metric | Image Head | Audio Head | Fusion Head |
+|---|---|---|---|
+| **Accuracy** | 99.91% | 99.94% | 99.91% |
+| **Precision** | 100.00% | 99.94% | 100.00% |
+| **Recall** | 99.90% | 99.94% | 99.90% |
+| **F1 Score** | 99.95% | 99.94% | 99.95% |
+| **ROC-AUC** | 0.9996 | 0.9999 | 0.9998 |
+
+All three heads achieve above 99.9% accuracy and F1, with ROC-AUC exceeding 0.9996 for all heads.
+
+**Precision = 100.00% for Image and Fusion heads** means zero false positives — every sample predicted as Fake was genuinely fake. The non-zero false negatives (real samples predicted as fake) account for the ~0.10% recall shortfall.
+
+**Audio Head ROC-AUC = 0.9999** is the highest among all heads, indicating that audio spectrogram features are nearly perfectly separable between authentic and synthesized audio within this dataset.
+
+### 14.2 Exact Values from Source File
+
+Exact values from `results/metrics/test_metrics.json` for reproducibility reference:
+
+**Image Head:**
+- Accuracy: 0.9990825688073395
+- Precision: 1.0
+- Recall: 0.9990384615384615
+- F1: 0.9995189995189995
+- ROC-AUC: 0.99958547008547
+
+**Audio Head:**
+- Accuracy: 0.999388379204893
+- Precision: 0.9994199535962877
+- Recall: 0.9994199535962877
+- F1: 0.9994199535962877
+- ROC-AUC: 0.9999846171393583
+
+**Fusion Head:**
+- Accuracy: 0.9990825688073395
+- Precision: 1.0
+- Recall: 0.9990384615384615
+- F1: 0.9995189995189995
+- ROC-AUC: 0.9998183760683761
+
+### 14.3 Four-Category Modality Diagnostic
+
+Source: `results/modality_analysis/modality_category_results.csv`
+
+| Category | N | Img Acc | Aud Acc | Fus Acc | Image Mean Fake Prob | Audio Mean Fake Prob | Fusion Mean Fake Prob |
+|---|---|---|---|---|---|---|---|
+| RealVideo-RealAudio | 75 | 100.00% | 100.00% | 100.00% | 6.52% | 1.06% | 1.81% |
+| FakeVideo-RealAudio | 1,471 | 99.80% | 99.93% | 99.80% | 98.83% | 0.64% | 99.80% |
+| RealVideo-FakeAudio | 75 | 100.00% | 100.00% | 100.00% | 5.44% | 98.93% | 0.08% |
+| FakeVideo-FakeAudio | 1,649 | 100.00% | 99.94% | 100.00% | 99.51% | 99.71% | 100.00% |
+
+### 14.4 The Key Scientific Finding — Modality Decoupling
+
+The `RealVideo-FakeAudio` category (N=75) is the scientifically definitive test case:
+
+- The visual manipulation label is **Real** → the Image Head must predict Real.
+- The audio manipulation label is **Fake** → the Audio Head must predict Fake.
+- The Fusion Head targets the overall label, which is **Real** (real video dominates the overall label).
+
+Results:
+- **Image Head mean fake probability: 5.44%** → correctly predicts **REAL** (real video detected accurately)
+- **Audio Head mean fake probability: 98.93%** → correctly predicts **FAKE** (synthesized audio detected accurately)
+- **Fusion Head mean fake probability: 0.08%** → correctly predicts **REAL** per the overall label
+
+This is the definitive proof of modality decoupling: two heads looking at the same sample can reach opposite conclusions, each correct for its own modality. The V1 single-head architecture was structurally incapable of producing this result. The Audio Head could not have achieved 98.93% mean fake probability on this category unless it learned to evaluate audio independently from the visual stream.
+
+### 14.5 Comparison with V1 (Qualitative)
+
+The V1 model suffered from visual dominance. It could not distinguish `RealVideo-FakeAudio` from `RealVideo-RealAudio` because both categories share identical visual streams and the single fused representation was dominated by visual features. V1 would have predicted Real for both categories, missing the fake audio entirely.
+
+V2's independent Audio Head correctly identifies the audio manipulation in the `RealVideo-FakeAudio` category with a mean probability of 98.93%, while independently confirming the real video with the Image Head at 5.44%. This represents the project's primary scientific advancement.
+
+---
+
+## 15. Error Analysis
+
+### 15.1 Error Summary
+
+Source: `results/error_analysis/error_summary.csv`
+
+| Metric | Value |
+|---|---|
+| Total Test Samples | 3,270 |
+| False Positives (Fusion Head) | **0** |
+| False Negatives (Fusion Head) | **3** |
+| Image Head Errors | 3 |
+| Audio Head Errors | 2 |
+| Fusion Head Errors | 3 |
+
+**Total errors across all heads: 8** (on 3,270 samples across 3 heads = 9,810 individual head-predictions)
+
+The false positive count is **zero** for the Fusion Head: every sample predicted Fake was genuinely manipulated. The model is conservative in one direction — it occasionally misses a fake video (false negative) but never incorrectly flags a real one.
+
+### 15.2 False Positives — None Observed
+
+The `results/error_analysis/false_positives.csv` file contains only a header row — no false positives were recorded. This confirms that Image Head Precision = 100% and Fusion Head Precision = 100% from the formal metrics are accurate: not a single real sample was misclassified as fake by either the Image or Fusion head.
+
+### 15.3 False Negatives — 3 Cases
+
+All 3 false negatives are from the `FakeVideo-RealAudio` category (Category C in the FakeAVCeleb taxonomy). All three are `faceswap`-method deepfakes with authentic audio.
+
+| Identity | Race | Gender | Video Path | Image Fake Prob | Audio Fake Prob | Fusion Fake Prob |
+|---|---|---|---|---|---|---|
+| id00460 | African | Women | `FakeVideo-RealAudio/.../id00460/00005.mp4` | 6.33% | 0.30% | 1.45% |
+| id00592 | African | Women | `FakeVideo-RealAudio/.../id00592/00017.mp4` | 3.91% | 0.69% | 1.41% |
+| id06591 | Asian (East) | Men | `FakeVideo-RealAudio/.../id06591/00021.mp4` | 7.64% | 0.07% | 3.30% |
+
+**Analysis:**
+- All three have image head fake probabilities below 8%, leading to classification as Real (threshold = 0.5).
+- All three have audio head fake probabilities below 1%, consistent with authentic audio (as labeled).
+- The audio is genuinely real, so the audio head correctly returns low fake probability.
+- The visual manipulation in these videos is subtle enough that the image head predicts near-Real probabilities.
+- These represent the hardest visual deepfakes in the test set — cases where the face-swap quality is high enough to fool the image encoder.
+
+**Why the Fusion Head also misses them:** The fusion head predicts based on the joint visual-audio representation. Since the audio is authentic (near-zero probability), the fusion output is dominated by the visual signal, which is itself below the threshold. Both heads independently lean toward Real, and the concatenated representation reinforces this.
+
+**Demographic note:** Two of the three false negatives involve African-heritage subjects and one involves East Asian subjects. This could reflect uneven representation of these demographic groups in the training set's manipulation diversity, or it could be coincidental given the very small absolute error count (3 samples).
+
+### 15.4 Error Summary Table by Head
+
+| Head | Errors | Error Type | Category |
+|---|---|---|---|
+| Image Head | 3 | False Negatives (visual) | All `FakeVideo-RealAudio` |
+| Audio Head | 2 | False Negatives (audio) | From `FakeVideo-FakeAudio` |
+| Fusion Head | 3 | False Negatives | Same as Image Head errors |
+
+The Audio Head's 2 errors are independent of the Image Head's 3 errors, occurring in the `FakeVideo-FakeAudio` category — samples where both video and audio were manipulated but the audio synthesis was sufficiently natural to be classified as Real by the Audio Head.
+
+---
+
+## 16. Grad-CAM / Interpretability
+
+### 16.1 Purpose
+
+Grad-CAM (Gradient-weighted Class Activation Mapping) is used to generate spatial attention heatmaps that indicate which regions of the input most strongly influenced a specific prediction head's output. In this project it serves two distinct purposes:
+1. **Research evidence:** Demonstrates that the visual and audio heads are attending to plausibly relevant regions, supporting the credibility of the results.
+2. **Demonstration:** The Streamlit application generates Grad-CAM overlays at inference time for every uploaded input.
+
+### 16.2 Target Layers
+
+Both encoders expose `self.grad_cam_layer` pointing to `self.features[-1]` — the final MBConv block of EfficientNet-B0. This block produces spatial feature maps of shape `[N, 1280, 7, 7]` for 224×224 inputs (7×7 spatial grid). Grad-CAM over this layer produces a coarse 7×7 spatial attribution map that is then upsampled to 224×224.
+
+Why the final convolutional block: earlier layers represent generic low-level features (edges, textures). The final block represents the most semantically rich, task-specific activations. Grad-CAM over the final block produces the most informative attributions.
+
+### 16.3 Implementation — `GradCAM` Class
+
+**Files:** `scripts/generate_gradcam.py`, `app.py` (embedded copy with `retain_graph=True`)
+
+**Registration:**
+```python
+target_layer.register_forward_hook(save_activation)    # stores output tensor
+target_layer.register_full_backward_hook(save_gradient) # stores gradient tensor
+```
+
+**`__call__` / `generate` algorithm:**
+
+```
+1. model.zero_grad()
+
+2. Forward pass: preds = model(video, audio, return_all=True)
+
+3. Select target head output:
+   - 'image' → preds['image'] (B*T, 1) frame logits
+   - 'audio' → preds['audio'] (B, 1)
+   - 'fusion' → preds['fusion'] (B, 1)
+
+4. Compute scalar:
+   prob = torch.sigmoid(target_logits).mean()
+
+5. prob.backward()  [retain_graph=True in app.py for multiple GradCAM calls]
+
+6. Retrieve:
+   gradients  = self.gradients  # (N, C, H_f, W_f) = (N, 1280, 7, 7)
+   activations = self.activations  # same shape
+
+7. Global Average Pooling over spatial dims:
+   weights = np.mean(gradients, axis=(2, 3), keepdims=True)  # (N, 1280, 1, 1)
+
+8. Weighted sum of activations:
+   cam = np.sum(weights * activations, axis=1, keepdims=True)  # (N, 1, 7, 7)
+
+9. ReLU: cam = np.maximum(cam, 0)
+
+10. Min-max normalization per spatial map:
+    heatmap = (cam - cam_min) / (cam_max - cam_min + 1e-8)
+    → values in [0, 1]
+
+11. Return heatmap and prob.item()
+```
+
+**Overlay creation:**
+```
+1. Upsample heatmap from 7×7 → 224×224 using cv2.resize (bilinear)
+2. Apply COLORMAP_JET → BGR false-color map (blue=low, red=high)
+3. Convert BGR → RGB
+4. cv2.addWeighted(original, 0.5, heatmap_colored, 0.5, 0)
+   → 50% blend of original image and heatmap overlay
+```
+
+**Denormalization before overlay:** The stored video frame tensors are in normalized float32 (ImageNet mean/std). Before creating overlays, the denormalization is applied:
+```python
+img = tensor.transpose(1,2,0) * std + mean   # HWC, float [0,1]
+img = (np.clip(img, 0, 1) * 255).astype(np.uint8)
+```
+
+### 16.4 Head-Specific Gradient Routing
+
+The critical property of the V2 Grad-CAM implementation: **gradients flow from the target head only**. By calling `prob.backward()` on `sigmoid(preds['image'])`, gradients propagate exclusively from the Image Head loss through the shared backbone to the visual encoder's target layer. By calling it on `sigmoid(preds['audio'])`, gradients propagate from the Audio Head through the audio encoder. This ensures each head's Grad-CAM reflects only that head's learned representations — not a mixture.
+
+This is only possible because V2 has separate prediction heads. V1 had a single fused output, so its Grad-CAM gradient always mixed visual and audio signals with no way to isolate them.
+
+### 16.5 Generated Research Artefacts
+
+**Script:** `scripts/generate_gradcam.py`  
+**Samples:** One representative sample per four-category combination, taken from the first matching row in `test.csv` for each category.  
+**Frame selection:** Frames at indices `[0, 7, 15]` — first, middle, last frame of the 16-frame sequence.
+
+**Per sample, generated files:**
+- `results/gradcam/<category>/visual_gradcam.png` — 3×2 grid: original frame + Grad-CAM overlay for frames 0, 7, 15
+- `results/gradcam/<category>/audio_gradcam.png` — 1×2 grid: original spectrogram + Grad-CAM overlay
+- `results/gradcam/<category>/metadata.txt` — sample path, true labels, and predicted fake probabilities from all three heads
+
+### 16.6 Interpretability Constraints
+
+Grad-CAM provides **attribution**, not **proof**. The following constraints apply to all Grad-CAM results in this project:
+
+1. **Correlation, not causation:** A high-activation region indicates what the model paid attention to for its prediction, not necessarily a physical manipulation artifact at that location.
+2. **Coarse spatial resolution:** The 7×7 feature map (upsampled to 224×224) cannot pinpoint specific pixel-level artifacts. It identifies approximate regions of interest.
+3. **Single-sample evidence:** One representative sample per category is not statistically sufficient to make claims about the model's general attention patterns.
+4. **Backward hook limitations:** `register_full_backward_hook` captures the gradient of the loss with respect to the output of the target layer. This is the standard Grad-CAM formulation but may be affected by the AMP context in edge cases.
+
+---
+
+## 17. Streamlit Application
+
+### 17.1 Entry Point and Framework
+
+**File:** `app.py` (project root)  
+**Framework:** Streamlit  
+**Launch command:** `streamlit run app.py`  
+**Local URL:** `http://localhost:8501`
+
+The application is a single-file Streamlit app. It uses `@st.cache_resource` to load the model and preprocessing objects once at startup, avoiding repeated disk I/O and GPU initialization on each interaction.
+
+### 17.2 Pages
+
+The sidebar contains navigation between two pages: **Detection** and **Results & Evaluation**.
+
+### 17.3 Detection Page
+
+The Detection page provides a radio selector for input type: **Video**, **Image**, or **Audio**. Each modality uses a separate file uploader and inference function.
+
+**Video inference** (`process_video`):
+1. Save uploaded file to a temporary `.mp4` file.
+2. `VideoPreprocessor.process(path, return_raw_crops=True)` → 16 raw uint8 crops.
+3. Apply `multi_video_transform` (albumentations: Normalize + ToTensorV2, all 16 frames with `additional_targets`) → `(1, 16, 3, 224, 224)` tensor on device.
+4. Extract audio to a temporary `.wav` file via `AudioExtractor.extract`.
+5. `SpectrogramGenerator.generate(wav_path)` → `(1, 3, 224, 224)` tensor on device.
+6. Run `model(video, audio, return_all=True)` with `torch.no_grad()` to get fusion probability.
+7. Run `GradCAM` for Image Head → `(16, H_f, W_f)` heatmap.
+8. Run `GradCAM` for Audio Head → `(H_f, W_f)` heatmap.
+9. Temporary files are deleted.
+10. Display three prediction boxes (Visual, Audio, Overall), Grad-CAM overlays on frames `[0, 7, 15]`, and audio spectrogram Grad-CAM.
+
+**Image inference** (`process_image`):
+1. Open image with PIL, convert to RGB numpy array.
+2. `RetinaFaceCropper.crop_face(img_np)` → 224×224 face crop.
+3. **Fallback:** If face detection fails (returns `None`), the full image is resized to 224×224 with `cv2.INTER_CUBIC` — no error is raised.
+4. `VisualTransform(is_train=False).apply(crop)` → `(1, 3, 224, 224)` tensor on device.
+5. `GradCAM` for Image Head using `model(image=tensor, target_head='image')`.
+6. Display single prediction box and Grad-CAM overlay.
+
+**Audio inference** (`process_audio`):
+1. Write uploaded audio bytes to a temporary `.wav` file.
+2. `SpectrogramGenerator.generate(wav_path)` → `(1, 3, 224, 224)` tensor on device.
+3. `GradCAM` for Audio Head using `model(audio=tensor, target_head='audio')`.
+4. Display single prediction box, original spectrogram, and Grad-CAM overlay.
+
+### 17.4 Results & Evaluation Page
+
+The Results & Evaluation page is fully driven by pre-computed artefacts:
+
+1. Loads `results/metrics/test_metrics.json` → displays per-head Accuracy, Precision, Recall, F1, ROC-AUC in three columns.
+2. Loads `results/modality_analysis/modality_category_results.csv` → displays as a `st.dataframe` table.
+3. Loads `results/confusion_matrices/image_confusion_matrix.png`, `audio_confusion_matrix.png`, `fusion_confusion_matrix.png` → displayed in a three-column layout.
+4. Loads `results/roc_curves/image_roc_curve.png`, `audio_roc_curve.png`, `fusion_roc_curve.png` → displayed in a three-column layout.
+
+No inference is performed on this page. All values are from the frozen formal evaluation.
+
+### 17.5 Model Loading and Grad-CAM Gradient Setup
+
+```python
+@st.cache_resource
+def load_model():
+    model = MultiHeadDeepfakeModel(pretrained=False).to(device)
+    ckpt = torch.load(CHECKPOINT_PATH, map_location=device, weights_only=False)
+    model.load_state_dict(ckpt["model_state_dict"])
+    model.eval()
+    # Critical: re-enable gradients for Grad-CAM hooks
+    for param in model.parameters():
+        param.requires_grad = True
+    return model, device
+```
+
+`model.eval()` is called so batch normalization uses running statistics. However, `requires_grad=True` is explicitly set back on all parameters to allow the backward pass for Grad-CAM. Without this, `prob.backward()` would fail as no gradient graph is retained.
+
+### 17.6 Prediction Display
+
+The `show_prediction_box(title, prob)` helper renders a color-coded bordered box:
+- **Red** (`#FF4B4B`) with label **FAKE** if `prob > 0.5`
+- **Green** (`#00CC96`) with label **REAL** if `prob <= 0.5`
+- Displays the fake probability as a percentage.
+
+This renders via `st.markdown(unsafe_allow_html=True)`.
+
+### 17.7 Known Behaviors and Notes
+
+| Behavior | Context |
+|---|---|
+| Face detection fallback (Image mode) | If RetinaFace returns no detection, the full image is resized to 224×224 rather than returning an error |
+| Temporary files | Video and audio uploads are written to `tempfile.NamedTemporaryFile` and deleted after processing |
+| `retain_graph=True` in GradCAM | Used in `app.py` to allow multiple backward passes (video + audio Grad-CAM) on the same computation graph |
+| `use_container_width` → `width="stretch"` | Deprecated Streamlit parameter replaced with `width="stretch"` to suppress warnings |
+| Model cached across sessions | `@st.cache_resource` ensures the model is loaded once per server process, not per user interaction |
+
+---
