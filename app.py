@@ -26,7 +26,7 @@ from preprocessing.audio_preprocessing import AudioExtractor, SpectrogramGenerat
 # CONSTANTS & CONFIGURATION
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="Deepfake Detection V2 (Multi-Task)",
+    page_title="Deepfake Detection (Multi-Task)",
     layout="wide"
 )
 
@@ -36,7 +36,7 @@ CHECKPOINT_PATH = project_root / "checkpoints" / "best_model.pt"
 # UTILITY CLASSES (GRAD-CAM)
 # ---------------------------------------------------------
 class GradCAM:
-    """Reusable Grad-CAM implementation for V2."""
+    """Reusable Grad-CAM implementation for."""
     def __init__(self, model, target_layer):
         self.model = model
         self.target_layer = target_layer
@@ -267,8 +267,8 @@ def show_prediction_box(title, prob):
     )
 
 if page == "Detection":
-    st.title("Deepfake Detection V2")
-    st.write("Upload media to analyze using the independent V2 modalities.")
+    st.title("Deepfake Detection")
+    st.write("Upload media to analyze using the independent modalities.")
     
     modality = st.radio("Input Type:", ["Video", "Image", "Audio"], horizontal=True)
     
@@ -364,7 +364,7 @@ if page == "Detection":
                         st.image(overlay, caption="Grad-CAM Overlay", width="stretch")
 
 elif page == "Results & Evaluation":
-    st.title("V2 Results & Evaluation")
+    st.title("Results & Evaluation")
     
     metrics_path = project_root / "results" / "metrics" / "test_metrics.json"
     if metrics_path.exists():
@@ -388,7 +388,7 @@ elif page == "Results & Evaluation":
         
     st.markdown("---")
     st.subheader("Four-Category Modality Diagnostic")
-    st.write("Demonstrates V2's successful decoupling of independent prediction heads on the test set.")
+    st.write("Demonstrates successful decoupling of independent prediction heads on the test set.")
     
     cat_path = project_root / "results" / "modality_analysis" / "modality_category_results.csv"
     if cat_path.exists():
